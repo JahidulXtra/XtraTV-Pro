@@ -2,26 +2,39 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Editors and owners can manage channel data; viewers are read-only,
+    // matching the roles described in the admin dashboard. Falls back to
+    // allowing any signed-in admin when no role record exists yet, so the
+    // app keeps working for admins from before the roles feature existed.
+    function isEditorOrOwner() {
+      return !exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid))
+        || get(/databases/$(database)/documents/admin_roles/$(request.auth.uid)).data.role in ['owner', 'editor'];
+    }
+
     // Channel data — admin panel add/edit/delete writes here.
     // Only signed-in admins (Firebase Auth) can write.
     match /channels_chunks/{docId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if signedIn() && isEditorOrOwner();
     }
 
     match /channels_metadata/{docId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if signedIn() && isEditorOrOwner();
     }
 
     match /deleted_presets/{docId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if signedIn() && isEditorOrOwner();
     }
 
     match /featured_channels_config/{docId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if signedIn() && isEditorOrOwner();
     }
 
     // Analytics hits — anyone can log a new hit (anonymous visitor
@@ -51,15 +64,65 @@ service cloud.firestore {
     }
 
     // Admin roster / roles (owner, editor, viewer) — doc id is the admin's
-    // Firebase Auth uid. This is an organizational/soft-permission layer
-    // enforced by the app UI, not a hard security boundary: any signed-in
-    // admin already has write access to the collections above, same as
-    // before this feature existed. Locking role writes down further would
-    // require server-side custom claims (Cloud Functions), which this
-    // static-hosted app does not use.
+    // Firebase Auth uid.
     match /admin_roles/{uid} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+
+      allow create: if request.auth != null
+        && (
+          // The very first admin ever to open the dashboard claims "owner"
+          // for themselves, exactly once — gated on the admin_meta
+          // bootstrap marker below rather than just "do I have a role row
+          // yet", so a later admin can't do the same thing after an owner
+          // already exists.
+          (request.auth.uid == uid
+            && !exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid))
+            && !exists(/databases/$(database)/documents/admin_meta/bootstrap)
+            && request.resource.data.role == 'owner')
+
+          // Any later admin without a role row yet defaults to the safest
+          // role, "viewer", until an owner promotes them.
+          || (request.auth.uid == uid
+            && !exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid))
+            && exists(/databases/$(database)/documents/admin_meta/bootstrap)
+            && request.resource.data.role == 'viewer')
+
+          // An existing owner may create a role record for any admin.
+          || (get(/databases/$(database)/documents/admin_roles/$(request.auth.uid)).data.role == 'owner'
+            && request.resource.data.role in ['owner', 'editor', 'viewer'])
+        );
+
+      // Changing or removing any admin's existing role record — including
+      // one's own — requires the requester to already be an owner. This
+      // keeps role management under owner control once the roster exists.
+      allow update, delete: if request.auth != null
+        && get(/databases/$(database)/documents/admin_roles/$(request.auth.uid)).data.role == 'owner';
+    }
+
+    // Bootstrap marker: a single document that starts to exist the moment
+    // the very first admin claims "owner" (see admin_roles above). Its
+    // presence is what stops any later admin from also self-assigning
+    // "owner" — it can only ever be created once, and never changed or
+    // removed.
+    match /admin_meta/bootstrap {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['ownerUid', 'createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Admin audit log — append-only trail of admin dashboard actions
+    // (who changed what, when), tied to the admin_roles/uid of the
+    // acting admin. Any signed-in admin can write their own entries and
+    // read the log; nobody — including an Owner — can edit or delete an
+    // entry once written, so the trail can't be tampered with after the
+    // fact. The client only ever calls create (see js/audit-log.js).
+    match /admin_audit_log/{docId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.actorUid == request.auth.uid;
+      allow update, delete: if false;
     }
 
     // Connectivity check document used on app startup

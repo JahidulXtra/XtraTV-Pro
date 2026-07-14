@@ -4814,15 +4814,14 @@ html {
 .hover\:text-zinc-300:hover { color: var(--color-zinc-300); }
 
 /* 🟢 APP CODE — homepage scrolling announcement ticker */
+#homepage-scroll-ticker {
+  contain: layout style paint;
+}
 .iptv-ticker-track {
-  animation: iptv-ticker-scroll 18s linear infinite;
-}
-@keyframes iptv-ticker-scroll {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-#homepage-scroll-ticker:hover .iptv-ticker-track {
-  animation-play-state: paused;
+  will-change: transform;
+  transition: opacity 0.25s ease-in;
+  text-rendering: optimizeSpeed;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* 🟢 APP CODE — dropdown (<option>) theming.

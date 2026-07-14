@@ -9,6 +9,7 @@ A modern live IPTV streaming platform. Browse channels by category, search, add 
 - Category-based browsing and search
 - Add custom channels from `.m3u` / `.m3u8` playlist files or direct links
 - Favorites and local preferences saved per device
+- **Recently Watched (Watch History)** — automatically remembers the last 20 channels you played, most-recent-first, saved on-device (`localStorage`, key `iptv_watch_history`); includes a "clear history" action
 - Scrolling news/announcement ticker
 - Auto screen-orientation handling for fullscreen playback (`js/orientation-web.js`)
 
@@ -24,7 +25,12 @@ A modern live IPTV streaming platform. Browse channels by category, search, add 
   - **Owner** — full access, including managing other admins
   - **Editor** — add/edit/delete channels, no admin management
   - **Viewer** — read-only dashboard
-  - The first admin to open the dashboard is auto-assigned Owner. Note: roles are enforced by the app's UI only, not by Firestore rules — every signed-in admin still has full database write access (`request.auth != null`), so only create admin accounts for people you trust
+  - The first admin to open the dashboard is auto-assigned Owner. Roles are enforced both in the UI and in `firestore.rules`: only an Owner can change or remove a role record, and only Owner/Editor accounts can write channel data — a Viewer's database access is read-only.
+- **Audit Log** (visible to **Owner** role only) — an append-only "who changed what, when" trail of admin dashboard actions, stored in the `admin_audit_log` Firestore collection:
+  - Logs channel add/edit/delete, "delete all channels," bulk category reassign, playlist/backup imports, admin-role create/update/remove, and clearing the analytics/channel-hit logs.
+  - Each entry records the acting admin's email, uid, and **role at the time of the action** (looked up from `admin_roles`), plus a timestamp and a short human-readable summary of what changed.
+  - Filter by action type and export the (filtered) log as CSV.
+  - Entries can't be edited or deleted from the dashboard — not even by an Owner — because `firestore.rules` blocks `update`/`delete` on this collection entirely; only `create` (by the acting admin, for their own uid) and `read` (any signed-in admin) are allowed. This keeps the trail trustworthy even if an admin account is later compromised or demoted.
 - Firebase Authentication (email/password) admin login
 
 ## Project Structure
@@ -33,13 +39,13 @@ A modern live IPTV streaming platform. Browse channels by category, search, add 
 - `js/auth-web.js` — Firebase Authentication helper for admin login/logout and admin-account creation
 - `js/firestore-rest.js` — Firestore REST API calls (authenticated requests using the admin's ID token)
 - `js/analytics-web.js` — visitor & channel-hit analytics logging/aggregation
+- `js/audit-log.js` — writes/reads the Audit Log (`admin_audit_log`): who changed what, when, and with what role
 - `js/storage-web.js` — local storage of per-device preferences/favorites
 - `js/orientation-web.js` — screen-orientation handling for fullscreen playback
 - `css/app.css` — application styles
 - `svg/logo.svg` — app logo / favicon
 - `img/banner.jpg` — promo/banner image
 - `firestore.rules` — Firestore security rules (channels, analytics, admin roles)
-- `LICENSE` — MIT license text
 
 ## Data
 Channel data is stored and synced in real time via **Firebase Firestore**. Live streams are played directly from their HLS (`.m3u8`) sources.
@@ -60,4 +66,4 @@ This is a fully static site and can be deployed anywhere that serves static file
   3. Make sure `firestore.rules` requires `request.auth != null` for writes (already reflected in [`firestore.rules`](./firestore.rules)), then publish the rules.
   - No credentials live in the code — the bundle only shows *how* login works, not *who* can log in.
 - This repo contains the built/bundled production output (`js/app.js` is a single minified Vite bundle including React, hls.js, Firebase, etc.), not the original unbundled source project.
-- `firestore.rules` includes rules for the `channel_hits` (Most-Watched Channels) and `admin_roles` (Admins & Roles) collections used by the admin dashboard — deploy it via Firebase Console → Firestore → Rules, or `firebase deploy --only firestore:rules`, before using those features.
+- `firestore.rules` includes rules for the `channel_hits` (Most-Watched Channels), `admin_roles` (Admins & Roles), and `admin_audit_log` (Audit Log) collections used by the admin dashboard — deploy it via Firebase Console → Firestore → Rules, or `firebase deploy --only firestore:rules`, before using those features.

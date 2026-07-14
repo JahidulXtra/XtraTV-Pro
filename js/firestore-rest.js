@@ -69,6 +69,37 @@ async function throwOnError(res, label) {
   }
 }
 
+// Runs a simple structured query: one collection, one orderBy field,
+// a limit, and an optional "start after this value" cursor (for
+// pagination without re-fetching everything already seen). Only
+// supports the shapes this app actually needs (see fetchAuditLogPage
+// in js/audit-log.js) — not a general-purpose query builder.
+export async function restRunQuery(collection, { orderByField, direction = "DESCENDING", limit = 100, startAfterValue } = {}) {
+  const headers = await authHeaders();
+  const structuredQuery = {
+    from: [{ collectionId: collection }],
+    orderBy: [{ field: { fieldPath: orderByField }, direction }],
+    limit,
+  };
+  if (startAfterValue !== undefined && startAfterValue !== null) {
+    structuredQuery.startAt = { values: [toValue(startAfterValue)], before: false };
+  }
+  const res = await fetch(`${BASE}:runQuery`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ structuredQuery }),
+  });
+  await throwOnError(res, "runQuery");
+  const rows = await res.json();
+  const docs = (rows || [])
+    .filter((row) => row.document)
+    .map((row) => ({
+      id: row.document.name.split("/").pop(),
+      data: fromFields(row.document.fields),
+    }));
+  return docs;
+}
+
 // Fetches a single document. Returns null if it doesn't exist.
 export async function restGetDoc(collection, id) {
   const headers = await authHeaders();
