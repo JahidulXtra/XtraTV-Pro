@@ -587,6 +587,179 @@ function _d() {
   return (xP || ((xP = 1), (bE.exports = nK())), bE.exports);
 }
 var _ = _d();
+function XtraTickerMarquee(e) {
+  var text = e.text;
+  var containerRef = _.useRef(null);
+  var measureRef = _.useRef(null);
+  var contentRef = _.useRef(null);
+  var trackRef = _.useRef(null);
+  var readyState = _.useState(false);
+  var ready = readyState[0];
+  var setReady = readyState[1];
+  var state = _.useState(2);
+  var repeatCount = state[0];
+  var setRepeatCount = state[1];
+  var shiftState = _.useState(0);
+  var shiftPx = shiftState[0];
+  var setShiftPx = shiftState[1];
+  var TICKER_PX_PER_SEC = 55; // scroll speed — raise/lower to go faster/slower
+  _.useLayoutEffect(
+    function () {
+      var cancelled = false;
+      // Hide while (re)measuring so nothing renders with stale sizing.
+      setReady(false);
+      function measure() {
+        if (!containerRef.current || !measureRef.current) return null;
+        var containerWidth = containerRef.current.offsetWidth || 0;
+        // Buffer of extra copies so the repeated block always comfortably
+        // exceeds the container width, keeping the loop dense-looking.
+        // Capped so a wide screen with short text doesn't end up rendering
+        // dozens of copies every frame (which can look choppy).
+        var singleWidth = measureRef.current.scrollWidth || 1;
+        return Math.min(50, Math.max(3, Math.ceil((containerWidth * 2) / singleWidth) + 2));
+      }
+      function reveal() {
+        if (cancelled) return;
+        var needed = measure();
+        if (needed != null) setRepeatCount(needed);
+        setReady(true);
+      }
+      function handleResize() {
+        var needed = measure();
+        if (needed != null) setRepeatCount(needed);
+      }
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(function () {
+          if (!cancelled) requestAnimationFrame(reveal);
+        });
+      } else {
+        requestAnimationFrame(reveal);
+      }
+      window.addEventListener("resize", handleResize);
+      window.addEventListener("load", handleResize);
+      return function () {
+        cancelled = true;
+        window.removeEventListener("resize", handleResize);
+        window.removeEventListener("load", handleResize);
+      };
+    },
+    [text],
+  );
+  // Trailing separator ensures every repeat — including the wraparound
+  // point where the loop restarts — has a bullet between copies.
+  // Non-breaking spaces are used around the bullet so the gap renders
+  // consistently under "white-space: nowrap".
+  var TICKER_SEP = "\u00A0\u00A0\u00A0•\u00A0\u00A0\u00A0";
+  var repeated = Array(repeatCount).fill(text).join(TICKER_SEP) + TICKER_SEP;
+  // Measure the actual rendered width of one copy of `repeated` in pixels
+  // so the loop distance is always exact regardless of text length, font,
+  // or device.
+  _.useEffect(
+    function () {
+      if (!contentRef.current) return;
+      var w = contentRef.current.getBoundingClientRect().width;
+      if (w > 0) setShiftPx(w);
+    },
+    [repeated],
+  );
+  var duration = shiftPx > 0 ? Math.max(3, shiftPx / TICKER_PX_PER_SEC) : 8;
+  // Drive the scroll position frame-by-frame instead of via a CSS keyframe
+  // animation. This gives direct, consistent control over the exact pixel
+  // offset every frame rather than depending on the browser's animation
+  // engine to interpolate a percentage-based transform, which is what
+  // produces the smoothest possible motion across devices. Pausing on
+  // hover/press is handled here too by simply not advancing the clock
+  // while paused, instead of animation-play-state.
+  _.useEffect(
+    function () {
+      if (!ready || shiftPx <= 0 || !trackRef.current) return;
+      var rafId = null;
+      var elapsedMs = 0;
+      var lastTs = null;
+      var paused = false;
+      function onEnter() {
+        paused = true;
+      }
+      function onLeave() {
+        paused = false;
+        lastTs = null;
+      }
+      var el = containerRef.current;
+      if (el) {
+        el.addEventListener("mouseenter", onEnter);
+        el.addEventListener("mouseleave", onLeave);
+      }
+      function step(ts) {
+        if (lastTs == null) lastTs = ts;
+        if (!paused) {
+          elapsedMs += ts - lastTs;
+        }
+        lastTs = ts;
+        var durationMs = duration * 1000;
+        var progress = (elapsedMs % durationMs) / durationMs;
+        var x = -progress * shiftPx;
+        if (trackRef.current) {
+          trackRef.current.style.transform = `translate3d(${x}px,0,0)`;
+        }
+        rafId = requestAnimationFrame(step);
+      }
+      rafId = requestAnimationFrame(step);
+      return function () {
+        if (rafId != null) cancelAnimationFrame(rafId);
+        if (el) {
+          el.removeEventListener("mouseenter", onEnter);
+          el.removeEventListener("mouseleave", onLeave);
+        }
+      };
+    },
+    [ready, shiftPx, duration, repeated],
+  );
+  return x.jsxs("div", {
+    ref: containerRef,
+    id: "homepage-scroll-ticker",
+    className:
+      "relative w-full overflow-hidden bg-gradient-to-r from-yellow-500/10 via-black/50 to-yellow-500/10 border-y border-yellow-500/20 py-2",
+    children: [
+      x.jsx("span", {
+        ref: measureRef,
+        "aria-hidden": "true",
+        className: "whitespace-nowrap px-8 text-xs sm:text-sm font-bold tracking-wide",
+        style: {
+          position: "absolute",
+          top: 0,
+          left: 0,
+          visibility: "hidden",
+          pointerEvents: "none",
+          height: 0,
+          overflow: "hidden",
+        },
+        children: text,
+      }),
+      x.jsxs("div", {
+        ref: trackRef,
+        className:
+          "iptv-ticker-track flex items-center whitespace-nowrap w-max",
+        style: {
+          opacity: ready ? 1 : 0,
+        },
+        children: [
+          x.jsx("span", {
+            ref: contentRef,
+            className:
+              "inline-block px-8 text-xs sm:text-sm font-bold text-yellow-300 tracking-wide",
+            children: repeated,
+          }),
+          x.jsx("span", {
+            className:
+              "inline-block px-8 text-xs sm:text-sm font-bold text-yellow-300 tracking-wide",
+            "aria-hidden": "true",
+            children: repeated,
+          }),
+        ],
+      }),
+    ],
+  });
+}
 const rK = N3(_),
   iK = JG({ __proto__: null, default: rK }, [_]);
 var EE = { exports: {} },
@@ -97744,36 +97917,8 @@ function mAe() {
                                         new Date().toISOString().slice(0, 10) >= tickerStart) &&
                                       (!tickerEnd ||
                                         new Date().toISOString().slice(0, 10) <= tickerEnd) &&
-                                      x.jsx("div", {
-                                        id: "homepage-scroll-ticker",
-                                        className:
-                                          "relative w-full overflow-hidden bg-gradient-to-r from-yellow-500/10 via-black/50 to-yellow-500/10 border-y border-yellow-500/20 py-2",
-                                        children: x.jsxs("div", {
-                                          className:
-                                            "iptv-ticker-track flex items-center whitespace-nowrap w-max",
-                                          // 🟢 APP CODE — scroll speed scales with text length (character
-                                          // count works the same for Bangla and English) so long ticker
-                                          // text isn't rushed through at the same fixed speed as short text.
-                                          style: {
-                                            animationDuration: `${Math.max(
-                                              5,
-                                              tickerText.length * 0.05,
-                                            )}s`,
-                                          },
-                                          children: [
-                                            x.jsx("span", {
-                                              className:
-                                                "inline-block px-8 text-xs sm:text-sm font-bold text-yellow-300 tracking-wide",
-                                              children: tickerText,
-                                            }),
-                                            x.jsx("span", {
-                                              className:
-                                                "inline-block px-8 text-xs sm:text-sm font-bold text-yellow-300 tracking-wide",
-                                              "aria-hidden": "true",
-                                              children: tickerText,
-                                            }),
-                                          ],
-                                        }),
+                                      x.jsx(XtraTickerMarquee, {
+                                        text: tickerText,
                                       }),
                                     x.jsx("div", {
                                       className: "w-full",
