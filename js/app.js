@@ -47980,6 +47980,13 @@ const lte = {
     ],
   ],
   Wy = Ge("heart", qte);
+// 🟢 APP CODE — "history" icon (clock w/ back-arc) for Recently Watched tab
+const rwHistIconDefs = [
+    ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", key: "rwh1" }],
+    ["path", { d: "M3 3v5h5", key: "rwh2" }],
+    ["path", { d: "M12 7v5l4 2", key: "rwh3" }],
+  ],
+  RwHistoryIcon = Ge("history", rwHistIconDefs);
 /**
  * @license lucide-react v0.546.0 - ISC
  *
@@ -96247,6 +96254,9 @@ function mAe() {
   const [t, e] = _.useState([]),
     [n, r] = _.useState(null),
     [i, s] = _.useState([]),
+    // 🟢 APP CODE — Recently Watched: list of { id, ts } most-recent-first,
+    // persisted to localStorage under "iptv_watch_history" (mirrors favorites).
+    [watchHistory, setWatchHistory] = _.useState([]),
     [a, l] = _.useState(""),
     [u, f] = _.useState(!1),
     [d, h] = _.useState(() => {
@@ -96454,10 +96464,35 @@ function mAe() {
         return (console.error("Error getting most watched channel:", De), J[0]);
       }
     },
+    // 🟢 APP CODE — Recently Watched: record channel tune-ins, most-recent-first,
+    // capped at 20 entries. Fire-and-forget/best-effort, never blocks playback.
+    recordWatchHistory = (J) => {
+      try {
+        if (!J || !J.id) return;
+        setWatchHistory((prev) => {
+          const next = [
+            { id: J.id, ts: Date.now() },
+            ...prev.filter((h) => h.id !== J.id),
+          ].slice(0, 20);
+          try {
+            rt.setItem("iptv_watch_history", JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      } catch (De) {
+        console.warn("Watch-history logging skipped:", De);
+      }
+    },
+    clearWatchHistory = () => {
+      (setWatchHistory([]),
+        rt.setItem("iptv_watch_history", JSON.stringify([])),
+        Le("Watch history cleared.", "info"));
+    },
     We = (J) => {
       (r(J),
         de(J.id),
         logChannelHitRemote(J),
+        recordWatchHistory(J),
         ye("player"),
         window.scrollTo({ top: 0, behavior: "smooth" }));
     },
@@ -96590,6 +96625,13 @@ function mAe() {
       if (He)
         try {
           s(JSON.parse(He));
+        } catch (lt) {
+          console.error(lt);
+        }
+      const rwHe = rt.getItem("iptv_watch_history");
+      if (rwHe)
+        try {
+          setWatchHistory(JSON.parse(rwHe));
         } catch (lt) {
           console.error(lt);
         }
@@ -97166,6 +97208,37 @@ function mAe() {
                         children: [
                           x.jsx(uu, { className: "w-4 h-4 shrink-0" }),
                           !ve && x.jsx("span", { children: "All Channels" }),
+                        ],
+                      }),
+                      x.jsxs("button", {
+                        onClick: () => {
+                          (Ce("All"), ye("favorites"));
+                        },
+                        id: "sidebar-favorites-btn",
+                        className: `w-full flex items-center ${ve ? "justify-center p-3" : "gap-3 px-3 py-2.5"} rounded-xl text-xs font-bold transition duration-150 cursor-pointer relative ${me === "favorites" ? "bg-rose-500/10 border border-rose-500/25 text-rose-400" : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200 border border-transparent"}`,
+                        title: "Favorites",
+                        children: [
+                          x.jsx(Wy, {
+                            className: `w-4 h-4 shrink-0 ${me === "favorites" ? "fill-rose-500 text-rose-500" : ""}`,
+                          }),
+                          !ve && x.jsx("span", { children: "Favorites" }),
+                          i.length > 0 &&
+                            x.jsx("span", {
+                              className: `${ve ? "absolute top-1.5 right-1.5" : "ml-auto"} text-[10px] font-mono text-rose-400/80`,
+                              children: i.length,
+                            }),
+                        ],
+                      }),
+                      x.jsxs("button", {
+                        onClick: () => {
+                          (Ce("All"), ye("history"));
+                        },
+                        id: "sidebar-history-btn",
+                        className: `w-full flex items-center ${ve ? "justify-center p-3" : "gap-3 px-3 py-2.5"} rounded-xl text-xs font-bold transition duration-150 cursor-pointer ${me === "history" ? "bg-sky-500/10 border border-sky-500/25 text-sky-400" : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200 border border-transparent"}`,
+                        title: "Recently Watched",
+                        children: [
+                          x.jsx(RwHistoryIcon, { className: "w-4 h-4 shrink-0" }),
+                          !ve && x.jsx("span", { children: "History" }),
                         ],
                       }),
                       x.jsxs("button", {
@@ -98191,6 +98264,137 @@ function mAe() {
                                     },
                                     "favorites-view",
                                   )
+                                : me === "history"
+                                  ? x.jsxs(
+                                      sr.div,
+                                      {
+                                        initial: { opacity: 0, scale: 0.98 },
+                                        animate: { opacity: 1, scale: 1 },
+                                        exit: { opacity: 0 },
+                                        className: "space-y-6 pb-2 sm:pb-12",
+                                        children: [
+                                          x.jsxs("div", {
+                                            className:
+                                              "flex items-center justify-between pb-2 border-b border-white/5",
+                                            children: [
+                                              x.jsxs("button", {
+                                                onClick: () => {
+                                                  (Ce("All"), ye("home"));
+                                                },
+                                                id: "back-to-home-history-btn",
+                                                className:
+                                                  "flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white rounded-xl border border-white/5 hover:border-white/10 transition duration-150 text-xs font-bold cursor-pointer",
+                                                children: [
+                                                  x.jsx(cm, {
+                                                    className: "w-4 h-4",
+                                                  }),
+                                                  x.jsx("span", {
+                                                    children: "Back to Home",
+                                                  }),
+                                                ],
+                                              }),
+                                              x.jsxs("div", {
+                                                className:
+                                                  "flex items-center gap-3",
+                                                children: [
+                                                  x.jsxs("div", {
+                                                    className:
+                                                      "text-right text-xs text-zinc-400",
+                                                    children: [
+                                                      "Recently Watched: ",
+                                                      x.jsx("span", {
+                                                        className:
+                                                          "text-sky-400 font-extrabold font-mono",
+                                                        children:
+                                                          watchHistory.length,
+                                                      }),
+                                                      "",
+                                                    ],
+                                                  }),
+                                                  watchHistory.length > 0 &&
+                                                    x.jsx("button", {
+                                                      onClick: () => {
+                                                        window.confirm(
+                                                          "Clear your watch history?",
+                                                        ) && clearWatchHistory();
+                                                      },
+                                                      id: "clear-history-btn",
+                                                      className:
+                                                        "px-3 py-1.5 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded-lg border border-white/5 hover:border-white/10 transition duration-150 text-[11px] font-bold cursor-pointer",
+                                                      children: "Clear",
+                                                    }),
+                                                ],
+                                              }),
+                                            ],
+                                          }),
+                                          watchHistory
+                                            .map((hh) =>
+                                              t.find((J) => J.id === hh.id),
+                                            )
+                                            .filter(Boolean).length > 0
+                                            ? x.jsx(qh, {
+                                                channels: watchHistory
+                                                  .map((hh) =>
+                                                    t.find(
+                                                      (J) => J.id === hh.id,
+                                                    ),
+                                                  )
+                                                  .filter(Boolean),
+                                                currentChannel: n,
+                                                onSelectChannel: (J) => {
+                                                  (We(J), ye("player"));
+                                                },
+                                                onDeleteChannel: At,
+                                                favorites: i,
+                                                onToggleFavorite: on,
+                                                onOpenAddSingle: () => ht(!0),
+                                                onOpenImportM3U: () => ui(!0),
+                                                isFullPageMode: !0,
+                                                onBack: () => {
+                                                  (Ce("All"), ye("home"));
+                                                },
+                                                isAdmin: q === "admin",
+                                                selectedCategory: re,
+                                                onSelectCategory: Ce,
+                                                searchQuery: a,
+                                                isLoading: v,
+                                              })
+                                            : x.jsxs("div", {
+                                                className:
+                                                  "py-20 text-center bg-white/[0.01] border border-white/5 rounded-2xl p-8 max-w-lg mx-auto",
+                                                children: [
+                                                  x.jsx(RwHistoryIcon, {
+                                                    className:
+                                                      "w-16 h-16 text-zinc-700 mx-auto mb-4 animate-pulse stroke-[1.5]",
+                                                  }),
+                                                  x.jsx("p", {
+                                                    className:
+                                                      "text-zinc-300 font-bold text-base mb-2",
+                                                    children:
+                                                      "No watch history yet",
+                                                  }),
+                                                  x.jsx("p", {
+                                                    className:
+                                                      "text-zinc-500 text-xs leading-relaxed max-w-sm mx-auto mb-6",
+                                                    children:
+                                                      "Channels you tune into will show up here for quick access — pick up right where you left off.",
+                                                  }),
+                                                  x.jsx("button", {
+                                                    onClick: () => {
+                                                      (Ce("All"),
+                                                        ye("all-channels"));
+                                                    },
+                                                    className:
+                                                      "px-5 py-2.5 bg-sky-500 hover:bg-sky-600 text-black font-extrabold text-xs rounded-xl cursor-pointer shadow-lg active:scale-95 transition",
+                                                    children:
+                                                      "Browse Channels",
+                                                  }),
+                                                ],
+                                              }),
+                                        ],
+                                      },
+                                      "history-view",
+                                    )
                                 : me === "featured"
                                   ? x.jsxs(
                                       sr.div,
@@ -99084,6 +99288,22 @@ function mAe() {
                       x.jsx("span", {
                         className: "text-[10px]",
                         children: "Favorites",
+                      }),
+                    ],
+                  }),
+                  x.jsxs("button", {
+                    onClick: () => {
+                      (Ce("All"), ye("history"));
+                    },
+                    id: "history-tab-btn",
+                    className: `flex flex-col items-center justify-center flex-1 h-full gap-1 cursor-pointer transition relative ${me === "history" ? "text-sky-400 font-extrabold" : "text-zinc-500 hover:text-zinc-300"}`,
+                    children: [
+                      x.jsx(RwHistoryIcon, {
+                        className: `w-5 h-5 ${me === "history" ? "text-sky-400" : ""}`,
+                      }),
+                      x.jsx("span", {
+                        className: "text-[10px]",
+                        children: "History",
                       }),
                     ],
                   }),
