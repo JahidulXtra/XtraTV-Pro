@@ -92836,6 +92836,30 @@ function dAe({
         setSelectedIds([]),
         setTimeout(() => Ie(""), 4e3));
     },
+    // 🟢 APP CODE — Bulk delete: deletes every currently-selected channel
+    // (checkboxes in the table below) in one action. Reuses the existing
+    // single-channel onDeleteChannel handler (n) for each one, so every
+    // normal delete side-effect still happens per channel (local cache
+    // update, Firestore sync, audit log entry) — this just drives it in a
+    // loop instead of the admin clicking delete one row at a time.
+    bulkDeleteSelected = async () => {
+      if (selectedIds.length === 0) return;
+      const toDelete = t.filter((Je) => selectedIds.includes(Je.id));
+      if (
+        !window.confirm(
+          `Are you sure you want to delete ${toDelete.length} selected channel(s)? This cannot be undone.`,
+        )
+      )
+        return;
+      for (const Je of toDelete) {
+        try {
+          await n(Je.id);
+        } catch (err) {
+          console.error("Bulk delete: failed to delete channel", Je.id, err);
+        }
+      }
+      setSelectedIds([]);
+    },
     // 🟢 APP CODE — Dead-link checker: tests one channel's stream URL.
     // Prefers hls.js (same engine used for real playback) so a "pass"
     // here means the channel would actually play for a viewer right now;
@@ -94386,6 +94410,16 @@ th{background:#f4f4f4}
                                 children: [
                                   x.jsx(mO, { className: "w-3.5 h-3.5" }),
                                   `Move to "${bulkCategory}"`,
+                                ],
+                              }),
+                              x.jsxs("button", {
+                                type: "button",
+                                onClick: bulkDeleteSelected,
+                                className:
+                                  "px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 font-bold text-xs rounded-xl flex items-center gap-1.5 transition duration-150 active:scale-[0.98] cursor-pointer",
+                                children: [
+                                  x.jsx(Gf, { className: "w-3.5 h-3.5" }),
+                                  `Delete ${selectedIds.length} selected`,
                                 ],
                               }),
                               x.jsx("button", {
