@@ -50684,6 +50684,8 @@ function qh({
                                                     "w-14 h-14 rounded-xl bg-white p-2 flex items-center justify-center overflow-hidden border border-white/10 transition-transform duration-200 shadow mb-3 select-none",
                                                   children: x.jsx("img", {
                                                     src: q.logo,
+                                                    loading: "lazy",
+                                                    decoding: "async",
                                                     alt: q.name,
                                                     className:
                                                       "max-w-full max-h-full object-contain",
@@ -94373,6 +94375,8 @@ th{background:#f4f4f4}
                                                 children: de.logo
                                                   ? x.jsx("img", {
                                                       src: de.logo,
+                                                      loading: "lazy",
+                                                      decoding: "async",
                                                       alt: "",
                                                       className:
                                                         "max-w-full max-h-full object-contain",
