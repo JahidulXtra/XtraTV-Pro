@@ -92550,6 +92550,64 @@ function dAe({
     [linkCheckResults, setLinkCheckResults] = _.useState({}),
     [linkCheckRunning, setLinkCheckRunning] = _.useState(!1),
     [linkCheckProgress, setLinkCheckProgress] = _.useState({ done: 0, total: 0 }),
+    // 🟢 APP CODE — Audit Log (Owner-only): "who changed what, when" trail
+    // of admin dashboard actions, backed by the "admin_audit_log" Firestore
+    // collection (see js/audit-log.js). Append-only — see firestore.rules.
+    [auditLog, setAuditLog] = _.useState([]),
+    [auditLogLoading, setAuditLogLoading] = _.useState(!1),
+    [auditLoadingMore, setAuditLoadingMore] = _.useState(!1),
+    [auditHasMore, setAuditHasMore] = _.useState(!1),
+    [auditOldestTs, setAuditOldestTs] = _.useState(null),
+    [auditActionFilter, setAuditActionFilter] = _.useState("All"),
+    [auditActorFilter, setAuditActorFilter] = _.useState("All"),
+    [auditDateFrom, setAuditDateFrom] = _.useState(""),
+    [auditDateTo, setAuditDateTo] = _.useState(""),
+    [auditActionLabels, setAuditActionLabels] = _.useState({}),
+    // 🟢 APP CODE — page-number pagination state for the Audit Log.
+    [auditPage, setAuditPage] = _.useState(1),
+    [auditRowsPerPage, setAuditRowsPerPage] = _.useState(10),
+    loadAuditLog = async () => {
+      setAuditLogLoading(!0);
+      try {
+        const { fetchAuditLogPage, AUDIT_ACTION_LABELS } = await import("./audit-log.js"),
+          { entries, hasMore, oldestTimestamp } = await fetchAuditLogPage();
+        (setAuditActionLabels(AUDIT_ACTION_LABELS),
+          setAuditLog(entries),
+          setAuditHasMore(hasMore),
+          setAuditOldestTs(oldestTimestamp),
+          setAuditPage(1));
+      } catch (de) {
+        console.error("Error loading audit log:", de);
+      } finally {
+        setAuditLogLoading(!1);
+      }
+    },
+    loadMoreAuditLog = async () => {
+      setAuditLoadingMore(!0);
+      try {
+        const { fetchAuditLogPage } = await import("./audit-log.js"),
+          { entries, hasMore, oldestTimestamp } = await fetchAuditLogPage({
+            before: auditOldestTs,
+          });
+        (setAuditLog((prev) => [...prev, ...entries]),
+          setAuditHasMore(hasMore),
+          setAuditOldestTs(oldestTimestamp));
+      } catch (de) {
+        console.error("Error loading more audit log entries:", de);
+      } finally {
+        setAuditLoadingMore(!1);
+      }
+    },
+    // Advances the Audit Log to a given page number, fetching the next
+    // batch of entries from the server first if that page needs data
+    // beyond what's currently loaded.
+    auditGoToPage = async (page) => {
+      const auditLastLoadedPage = Math.max(1, Math.ceil(auditLog.length / auditRowsPerPage));
+      if (page > auditLastLoadedPage && auditHasMore && !auditLoadingMore) {
+        await loadMoreAuditLog();
+      }
+      setAuditPage(page);
+    },
     isOwner = myRole === "owner",
     isViewer = myRole === "viewer",
     canManageChannels = !roleLoading && !isViewer,
@@ -92652,6 +92710,9 @@ function dAe({
   }, []);
   _.useEffect(() => {
     u === "admins" && isOwner && loadAdminList();
+  }, [u, isOwner]);
+  _.useEffect(() => {
+    u === "audit" && isOwner && loadAuditLog();
   }, [u, isOwner]);
   _.useEffect(() => {
     u === "analytics" && (R(), fetchChannelHitsData());
@@ -92760,6 +92821,12 @@ function dAe({
       (de.forEach((Je) => {
         r({ ...Je, category: bulkCategory });
       }),
+        import("./audit-log.js").then(({ logAuditEvent }) =>
+          logAuditEvent("channel_bulk_category_reassign", {
+            targetLabel: bulkCategory,
+            details: `${de.length} channel(s): ${de.map((Je) => Je.name).join(", ")}`,
+          }),
+        ),
         Ie(`${de.length} channel(s) moved to "${bulkCategory}"!`),
         setSelectedIds([]),
         setTimeout(() => Ie(""), 4e3));
@@ -93038,6 +93105,11 @@ function dAe({
           // request.auth != null to read/delete.
           const { clearAnalyticsHits: xAe } = await import("./analytics-web.js");
           await xAe();
+          import("./audit-log.js").then(({ logAuditEvent }) =>
+            logAuditEvent("clear_analytics_hits", {
+              details: `${v.length} record(s) cleared`,
+            }),
+          );
           (E([]),
             Ie("All analytics data deleted successfully!"),
             setTimeout(() => Ie(""), 4e3));
@@ -93067,6 +93139,11 @@ function dAe({
         try {
           const { clearChannelHits } = await import("./analytics-web.js");
           await clearChannelHits();
+          import("./audit-log.js").then(({ logAuditEvent }) =>
+            logAuditEvent("clear_channel_hits", {
+              details: `${chHits.length} record(s) cleared`,
+            }),
+          );
           (setChHits([]),
             Ie("All channel-view history deleted successfully!"),
             setTimeout(() => Ie(""), 4e3));
@@ -93291,6 +93368,12 @@ th{background:#f4f4f4}
           addedAt: Je.addedAt || new Date().toISOString(),
           addedBy: adminEmailProp || "owner",
         });
+        import("./audit-log.js").then(({ logAuditEvent }) =>
+          logAuditEvent("role_update", {
+            targetLabel: Je.email || de,
+            details: `role set to "${Je.role}"`,
+          }),
+        );
         (await loadAdminList(), de === myUid && setMyRole(Je.role));
       } catch (We) {
         (console.error("Error updating admin role:", We),
@@ -93305,7 +93388,14 @@ th{background:#f4f4f4}
       )
         return;
       try {
-        const { removeAdminRole } = await import("./analytics-web.js");
+        const { removeAdminRole } = await import("./analytics-web.js"),
+          removedAdmin = adminList.find((Je) => Je.uid === de);
+        import("./audit-log.js").then(({ logAuditEvent }) =>
+          logAuditEvent("role_remove", {
+            targetLabel: (removedAdmin && removedAdmin.email) || de,
+            details: `previous role: ${(removedAdmin && removedAdmin.role) || "unknown"}`,
+          }),
+        );
         (await removeAdminRole(de), await loadAdminList());
       } catch (Je) {
         (console.error("Error removing admin role:", Je),
@@ -93323,6 +93413,12 @@ th{background:#f4f4f4}
           addedAt: new Date().toISOString(),
           addedBy: adminEmailProp || "owner",
         }),
+          import("./audit-log.js").then(({ logAuditEvent }) =>
+            logAuditEvent("admin_create", {
+              targetLabel: Ke.email || de,
+              details: `role: ${We}`,
+            }),
+          ),
           await loadAdminList(),
           Ie(`New admin "${de}" was created with the "${We}" role!`),
           setTimeout(() => Ie(""), 4500));
@@ -93719,6 +93815,17 @@ th{background:#f4f4f4}
                       children: [
                         x.jsx(Xy, { className: "w-4 h-4 text-amber-400" }),
                         "Admins & Roles",
+                      ],
+                    }),
+                  isOwner &&
+                    x.jsxs("button", {
+                      onClick: () => {
+                        (f("audit"), Z(null));
+                      },
+                      className: `w-full py-2.5 px-3.5 rounded-xl text-xs font-bold transition flex items-center gap-2.5 ${u === "audit" ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/15" : "text-zinc-400 hover:text-zinc-200 hover:bg-white/5"}`,
+                      children: [
+                        x.jsx(Xy, { className: "w-4 h-4 text-sky-400" }),
+                        "Audit Log",
                       ],
                     }),
                 ],
@@ -95808,6 +95915,374 @@ th{background:#f4f4f4}
                     }),
                   ],
                 }),
+              // 🟢 APP CODE — Audit Log tab (Owner-only): "who changed what,
+              // when" trail of admin dashboard actions (Firestore
+              // "admin_audit_log", see js/audit-log.js). Read-only — there's
+              // no delete/clear action here on purpose, so the trail stays
+              // trustworthy even for an Owner.
+              u === "audit" &&
+                isOwner &&
+                (() => {
+                  const filteredLog = auditLog.filter((row) => {
+                    const matchesAction = auditActionFilter === "All" || row.action === auditActionFilter;
+                    const matchesActor =
+                      auditActorFilter === "All" || (row.actorEmail || row.actorUid) === auditActorFilter;
+                    const rowTime = new Date(row.timestamp).getTime();
+                    const matchesFrom = !auditDateFrom || rowTime >= new Date(`${auditDateFrom}T00:00:00`).getTime();
+                    const matchesTo = !auditDateTo || rowTime <= new Date(`${auditDateTo}T23:59:59.999`).getTime();
+                    return matchesAction && matchesActor && matchesFrom && matchesTo;
+                  });
+                  const actionOptions = [
+                    "All",
+                    ...Array.from(new Set(auditLog.map((row) => row.action))),
+                  ];
+                  const actorOptions = [
+                    "All",
+                    ...Array.from(new Set(auditLog.map((row) => row.actorEmail || row.actorUid))),
+                  ];
+                  const auditFiltersActive =
+                    auditActionFilter !== "All" || auditActorFilter !== "All" || auditDateFrom || auditDateTo;
+                  const clearAuditFilters = () => {
+                    (setAuditActionFilter("All"),
+                      setAuditActorFilter("All"),
+                      setAuditDateFrom(""),
+                      setAuditDateTo(""),
+                      setAuditPage(1));
+                  };
+                  // Page-number pagination over the currently-loaded and filtered entries.
+                  const auditTotalPages = Math.max(1, Math.ceil(filteredLog.length / auditRowsPerPage));
+                  const auditPageClamped = Math.min(auditPage, auditTotalPages);
+                  const auditPageRows = filteredLog.slice(
+                    (auditPageClamped - 1) * auditRowsPerPage,
+                    auditPageClamped * auditRowsPerPage,
+                  );
+                  return x.jsxs("div", {
+                    className: "space-y-4",
+                    children: [
+                      x.jsxs("div", {
+                        className: "p-4 bg-sky-500/5 border border-sky-500/15 rounded-2xl",
+                        children: [
+                          x.jsxs("h4", {
+                            className: "text-xs font-black text-sky-400 flex items-center gap-1.5 uppercase",
+                            children: [
+                              x.jsx(Xy, { className: "w-4 h-4 text-sky-400" }),
+                              "Audit Log",
+                            ],
+                          }),
+                          x.jsx("p", {
+                            className: "text-[11px] text-zinc-400 mt-1",
+                            children:
+                              "Every channel add/edit/delete, playlist/backup import, and admin-role change is recorded here with who did it, their role at the time, and when \u2014 including entries logged before you promoted or removed anyone. Entries can't be edited or deleted from the dashboard, including by an Owner.",
+                          }),
+                          x.jsx("p", {
+                            className: "text-[11px] text-zinc-500 mt-1",
+                            children:
+                              "Newest first. Filters (action, admin, date range) and the entry count only cover entries currently loaded; use the page controls to browse further back. CSV export covers only the page currently shown.",
+                          }),
+                        ],
+                      }),
+                      x.jsxs("div", {
+                        className: "flex flex-wrap items-center gap-2",
+                        children: [
+                          x.jsx("select", {
+                            value: auditActionFilter,
+                            onChange: (de) => {
+                              (setAuditActionFilter(de.target.value), setAuditPage(1));
+                            },
+                            className:
+                              "px-2.5 py-1.5 bg-white/5 border border-white/10 text-zinc-100 text-[11px] rounded-lg focus:outline-none",
+                            children: actionOptions.map((opt) =>
+                              x.jsx(
+                                "option",
+                                {
+                                  value: opt,
+                                  children: opt === "All" ? "All actions" : (auditActionLabels && auditActionLabels[opt]) || opt,
+                                },
+                                opt,
+                              ),
+                            ),
+                          }),
+                          x.jsx("select", {
+                            value: auditActorFilter,
+                            onChange: (de) => {
+                              (setAuditActorFilter(de.target.value), setAuditPage(1));
+                            },
+                            className:
+                              "px-2.5 py-1.5 bg-white/5 border border-white/10 text-zinc-100 text-[11px] rounded-lg focus:outline-none",
+                            children: actorOptions.map((opt) =>
+                              x.jsx(
+                                "option",
+                                { value: opt, children: opt === "All" ? "All admins" : opt },
+                                opt,
+                              ),
+                            ),
+                          }),
+                          x.jsxs("div", {
+                            className: "flex items-center gap-1.5",
+                            children: [
+                              x.jsx("span", {
+                                className: "text-[11px] text-zinc-500 font-medium",
+                                children: "From",
+                              }),
+                              x.jsx("input", {
+                                type: "date",
+                                value: auditDateFrom,
+                                onChange: (de) => {
+                                  (setAuditDateFrom(de.target.value), setAuditPage(1));
+                                },
+                                className:
+                                  "w-36 max-w-full px-2.5 py-1.5 bg-white/5 border border-white/10 text-zinc-100 text-[11px] rounded-lg focus:outline-none",
+                              }),
+                            ],
+                          }),
+                          x.jsxs("div", {
+                            className: "flex items-center gap-1.5",
+                            children: [
+                              x.jsx("span", {
+                                className: "text-[11px] text-zinc-500 font-medium",
+                                children: "To",
+                              }),
+                              x.jsx("input", {
+                                type: "date",
+                                value: auditDateTo,
+                                onChange: (de) => {
+                                  (setAuditDateTo(de.target.value), setAuditPage(1));
+                                },
+                                className:
+                                  "w-36 max-w-full px-2.5 py-1.5 bg-white/5 border border-white/10 text-zinc-100 text-[11px] rounded-lg focus:outline-none",
+                              }),
+                            ],
+                          }),
+                          auditFiltersActive &&
+                            x.jsx("button", {
+                              type: "button",
+                              onClick: clearAuditFilters,
+                              className:
+                                "px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-400 text-[11px] font-bold rounded-lg transition",
+                              children: "Clear filters",
+                            }),
+                          x.jsxs("button", {
+                            type: "button",
+                            onClick: loadAuditLog,
+                            className:
+                              "px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-200 text-[11px] font-bold rounded-lg transition flex items-center gap-1.5",
+                            children: [x.jsx(gO, { className: `w-3.5 h-3.5 ${auditLogLoading ? "animate-spin" : ""}` }), "Refresh"],
+                          }),
+                          auditPageRows.length > 0 &&
+                            x.jsx("button", {
+                              type: "button",
+                              // Exports the entries currently shown on this page.
+                              onClick: () =>
+                                downloadCSV(
+                                  auditPageRows.map((row) => ({
+                                    timestamp: row.timestamp,
+                                    actorEmail: row.actorEmail,
+                                    actorRole: row.actorRole,
+                                    action: row.action,
+                                    target: row.targetLabel,
+                                    details: row.details,
+                                  })),
+                                  `audit-log-${new Date().toISOString().slice(0, 10)}.csv`,
+                                ),
+                              className:
+                                "px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-200 text-[11px] font-bold rounded-lg transition",
+                              children: "Export CSV",
+                            }),
+                          x.jsx("span", {
+                            className: "text-[10px] text-zinc-500 font-mono",
+                            children: `${filteredLog.length} of ${auditLog.length} loaded${auditHasMore ? "+" : ""}`,
+                          }),
+                        ],
+                      }),
+                      x.jsx("div", {
+                        className: "space-y-2 max-h-[32rem] overflow-y-auto pr-1",
+                        children: auditLogLoading
+                          ? x.jsx("div", {
+                              className: "py-10 text-center text-zinc-500 text-xs",
+                              children: "Loading audit log...",
+                            })
+                          : filteredLog.length === 0
+                            ? x.jsx("div", {
+                                className: "py-10 text-center text-zinc-500 text-xs",
+                                children: auditFiltersActive
+                                  ? "No entries match the current filters."
+                                  : "No audit log entries yet.",
+                              })
+                            : auditPageRows.map((row) =>
+                                x.jsxs(
+                                  "div",
+                                  {
+                                    className:
+                                      "flex flex-col gap-1 p-3 bg-white/[0.02] border border-white/5 rounded-xl text-xs",
+                                    children: [
+                                      x.jsxs("div", {
+                                        className: "flex flex-wrap items-center justify-between gap-2",
+                                        children: [
+                                          x.jsx("span", {
+                                            className: "font-bold text-zinc-200",
+                                            children: (auditActionLabels && auditActionLabels[row.action]) || row.action,
+                                          }),
+                                          x.jsx("span", {
+                                            className: "text-[10px] text-zinc-500 font-mono",
+                                            children: new Date(row.timestamp).toLocaleString(),
+                                          }),
+                                        ],
+                                      }),
+                                      x.jsxs("div", {
+                                        className: "text-[11px] text-zinc-400",
+                                        children: [
+                                          x.jsxs("span", {
+                                            className: "text-zinc-300 font-semibold",
+                                            children: [row.actorEmail || row.actorUid, ` (${row.actorRole || "unknown"})`],
+                                          }),
+                                          row.targetLabel ? ` \u2014 ${row.targetLabel}` : "",
+                                        ],
+                                      }),
+                                      row.details &&
+                                        x.jsx("div", {
+                                          className: "text-[10px] text-zinc-500",
+                                          children: row.details,
+                                        }),
+                                    ],
+                                  },
+                                  row.id,
+                                ),
+                              ),
+                      }),
+                      filteredLog.length > 0 &&
+                        x.jsxs("div", {
+                          id: "audit-log-pagination",
+                          className:
+                            "mt-1 flex flex-col md:flex-row items-center justify-between gap-4 p-4 rounded-2xl border border-white/5 bg-[#0a0a0a]/50 text-xs text-zinc-400",
+                          children: [
+                            x.jsxs("div", {
+                              className: "flex items-center gap-3",
+                              children: [
+                                x.jsx("span", {
+                                  className: "font-medium text-zinc-500",
+                                  children: "Show per page:",
+                                }),
+                                x.jsx("select", {
+                                  value: auditRowsPerPage,
+                                  onChange: (de) => {
+                                    (setAuditRowsPerPage(Number(de.target.value)), setAuditPage(1));
+                                  },
+                                  className:
+                                    "bg-white/5 border border-white/10 text-xs rounded-xl px-2.5 py-1.5 text-zinc-300 focus:outline-none focus:border-indigo-500 cursor-pointer transition hover:bg-white/10 font-sans",
+                                  children: [10, 20, 30, 40, 50].map((n) =>
+                                    x.jsx(
+                                      "option",
+                                      { value: n, className: "bg-[#0b0b0b] text-white", children: n },
+                                      n,
+                                    ),
+                                  ),
+                                }),
+                                x.jsx("div", { className: "hidden md:block w-px h-4 bg-white/5" }),
+                                x.jsxs("p", {
+                                  className: "text-zinc-500 font-medium",
+                                  children: [
+                                    auditLoadingMore
+                                      ? "Loading..."
+                                      : x.jsxs(x.Fragment, {
+                                          children: [
+                                            "Page ",
+                                            x.jsx("span", {
+                                              className: "text-zinc-300 font-bold font-mono",
+                                              children: auditPageClamped,
+                                            }),
+                                            " of ",
+                                            x.jsx("span", {
+                                              className: "text-indigo-400 font-bold font-mono",
+                                              children: auditTotalPages,
+                                            }),
+                                            auditHasMore ? " (more available)" : "",
+                                          ],
+                                        }),
+                                  ],
+                                }),
+                              ],
+                            }),
+                            x.jsxs("div", {
+                              className: "flex items-center gap-1.5 select-none self-end md:self-auto",
+                              children: [
+                                x.jsx("button", {
+                                  type: "button",
+                                  disabled: auditPageClamped === 1,
+                                  onClick: () => auditGoToPage(1),
+                                  className: `p-2 rounded-xl border transition ${auditPageClamped === 1 ? "border-white/5 text-zinc-600 bg-white/[0.01] cursor-not-allowed" : "border-white/10 text-zinc-300 hover:bg-white/5 active:scale-95 cursor-pointer"}`,
+                                  title: "First Page",
+                                  children: x.jsx(Rte, { className: "w-4 h-4" }),
+                                }),
+                                x.jsx("button", {
+                                  type: "button",
+                                  disabled: auditPageClamped === 1,
+                                  onClick: () => auditGoToPage(Math.max(1, auditPageClamped - 1)),
+                                  className: `p-2 rounded-xl border transition ${auditPageClamped === 1 ? "border-white/5 text-zinc-600 bg-white/[0.01] cursor-not-allowed" : "border-white/10 text-zinc-300 hover:bg-white/5 active:scale-95 cursor-pointer"}`,
+                                  title: "Previous Page",
+                                  children: x.jsx(eB, { className: "w-4 h-4" }),
+                                }),
+                                x.jsx("div", {
+                                  className: "flex items-center gap-1",
+                                  children: (() => {
+                                    const pageNums = [],
+                                      withDots = [];
+                                    let prevNum;
+                                    for (let n = 1; n <= auditTotalPages; n++)
+                                      (n === 1 ||
+                                        n === auditTotalPages ||
+                                        (n >= auditPageClamped - 1 && n <= auditPageClamped + 1)) &&
+                                        pageNums.push(n);
+                                    for (let n of pageNums)
+                                      (prevNum &&
+                                        (n - prevNum === 2
+                                          ? withDots.push(prevNum + 1)
+                                          : n - prevNum > 2 && withDots.push("...")),
+                                        withDots.push(n),
+                                        (prevNum = n));
+                                    return withDots.map((n, idx) => {
+                                      if (n === "...")
+                                        return x.jsx(
+                                          "span",
+                                          { className: "px-2 text-zinc-600 font-bold", children: "..." },
+                                          `audit-dots-${idx}`,
+                                        );
+                                      const isCurrent = auditPageClamped === n;
+                                      return x.jsx(
+                                        "button",
+                                        {
+                                          type: "button",
+                                          onClick: () => auditGoToPage(n),
+                                          className: `w-8 h-8 rounded-xl font-mono text-xs font-bold transition flex items-center justify-center border ${isCurrent ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 font-extrabold" : "border-transparent text-zinc-400 hover:border-white/10 hover:bg-white/5 hover:text-white cursor-pointer"}`,
+                                          children: n,
+                                        },
+                                        `audit-page-${n}`,
+                                      );
+                                    });
+                                  })(),
+                                }),
+                                x.jsx("button", {
+                                  type: "button",
+                                  disabled: auditPageClamped === auditTotalPages && !auditHasMore,
+                                  onClick: () => auditGoToPage(Math.min(auditTotalPages + (auditHasMore ? 1 : 0), auditPageClamped + 1)),
+                                  className: `p-2 rounded-xl border transition ${auditPageClamped === auditTotalPages && !auditHasMore ? "border-white/5 text-zinc-600 bg-white/[0.01] cursor-not-allowed" : "border-white/10 text-zinc-300 hover:bg-white/5 active:scale-95 cursor-pointer"}`,
+                                  title: "Next Page",
+                                  children: x.jsx(T_, { className: "w-4 h-4" }),
+                                }),
+                                x.jsx("button", {
+                                  type: "button",
+                                  disabled: auditPageClamped === auditTotalPages,
+                                  onClick: () => auditGoToPage(auditTotalPages),
+                                  className: `p-2 rounded-xl border transition ${auditPageClamped === auditTotalPages ? "border-white/5 text-zinc-600 bg-white/[0.01] cursor-not-allowed" : "border-white/10 text-zinc-300 hover:bg-white/5 active:scale-95 cursor-pointer"}`,
+                                  title: "Last Page",
+                                  children: x.jsx(Pte, { className: "w-4 h-4" }),
+                                }),
+                              ],
+                            }),
+                          ],
+                        }),
+                    ],
+                  });
+                })(),
               u === "add" &&
                 x.jsxs("form", {
                   onSubmit: ui,
@@ -96784,6 +97259,9 @@ function mAe() {
         }
       const lt = [J, ...He];
       rt.setItem("iptv_custom_channels", JSON.stringify(lt));
+      import("./audit-log.js").then(({ logAuditEvent }) =>
+        logAuditEvent("channel_add", { targetLabel: J.name, details: J.url }),
+      );
       try {
         (await Xn(lt),
           Ke(),
@@ -96811,6 +97289,12 @@ function mAe() {
         }
       const at = [...J, ...lt];
       rt.setItem("iptv_custom_channels", JSON.stringify(at));
+      import("./audit-log.js").then(({ logAuditEvent }) =>
+        logAuditEvent("playlist_import", {
+          targetLabel: De,
+          details: `${J.length} channel(s)`,
+        }),
+      );
       try {
         (await Xn(at),
           Ke(),
@@ -96848,6 +97332,9 @@ function mAe() {
         at = [...He, bt];
       }
       rt.setItem("iptv_custom_channels", JSON.stringify(at));
+      import("./audit-log.js").then(({ logAuditEvent }) =>
+        logAuditEvent("channel_edit", { targetLabel: J.name, details: J.url }),
+      );
       try {
         (await Xn(at),
           Ke(),
@@ -96909,6 +97396,13 @@ function mAe() {
       try {
         rt.setItem("iptv_cached_firestore_channels", JSON.stringify(bt));
       } catch {}
+      const deletedChannel = d.find((Ve) => Ve.id === J);
+      import("./audit-log.js").then(({ logAuditEvent }) =>
+        logAuditEvent("channel_delete", {
+          targetLabel: (deletedChannel && deletedChannel.name) || J,
+          details: (deletedChannel && deletedChannel.url) || "",
+        }),
+      );
       try {
         (await Xn(at),
           Ke(),
@@ -96931,6 +97425,7 @@ function mAe() {
         );
         return;
       }
+      const deletedCount = d.length;
       h([]);
       try {
         rt.setItem("iptv_cached_firestore_channels", "[]");
@@ -96938,6 +97433,11 @@ function mAe() {
       (rt.setItem("iptv_custom_channels", "[]"),
         Ke(),
         n != null && n.isCustom && r(null));
+      import("./audit-log.js").then(({ logAuditEvent }) =>
+        logAuditEvent("channel_delete_all", {
+          details: `${deletedCount} channel(s) deleted`,
+        }),
+      );
       try {
         // Uses the REST client (js/firestore-rest.js) for this call.
         const { restListCollection, restDeleteDocs, restSetDocs } =

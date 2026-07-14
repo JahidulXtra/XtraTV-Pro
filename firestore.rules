@@ -83,6 +83,19 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/admin_roles/$(request.auth.uid)).data.role == 'owner';
     }
 
+    // Admin audit log — append-only trail of admin dashboard actions
+    // (who changed what, when), tied to the admin_roles/uid of the
+    // acting admin. Any signed-in admin can write their own entries and
+    // read the log; nobody — including an Owner — can edit or delete an
+    // entry once written, so the trail can't be tampered with after the
+    // fact. The client only ever calls create (see js/audit-log.js).
+    match /admin_audit_log/{docId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.actorUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     // Connectivity check document used on app startup
     match /test/{docId} {
       allow read: if true;
