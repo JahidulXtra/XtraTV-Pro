@@ -24,7 +24,7 @@ A modern live IPTV streaming platform. Browse channels by category, search, add 
   - **Owner** — full access, including managing other admins
   - **Editor** — add/edit/delete channels, no admin management
   - **Viewer** — read-only dashboard
-  - The first admin to open the dashboard is auto-assigned Owner. Note: roles are enforced by the app's UI only, not by Firestore rules — every signed-in admin still has full database write access (`request.auth != null`), so only create admin accounts for people you trust
+  - The first admin to open the dashboard is auto-assigned Owner. Roles are enforced both in the UI and in `firestore.rules`: only an Owner can change or remove a role record, and only Owner/Editor accounts can write channel data — a Viewer's database access is read-only.
 - Firebase Authentication (email/password) admin login
 
 ## Project Structure
