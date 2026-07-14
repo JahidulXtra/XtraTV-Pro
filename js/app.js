@@ -92654,7 +92654,7 @@ function dAe({
       setRoleLoading(!0);
       try {
         const { getCurrentAdminUser } = await import("./auth-web.js"),
-          { fetchAdminRole, fetchAdminRoles, setAdminRole } = await import(
+          { fetchAdminRole, fetchAdminRoles, setAdminRole, bootstrapFirstOwner } = await import(
             "./analytics-web.js"
           ),
           me = await getCurrentAdminUser();
@@ -92680,12 +92680,17 @@ function dAe({
             addedAt: new Date().toISOString(),
             addedBy: me.email || "self",
           };
-          await setAdminRole(me.uid, {
+          const roleDoc = {
             email: mine.email,
             role: mine.role,
             addedAt: mine.addedAt,
             addedBy: mine.addedBy,
-          });
+          };
+          if (role === "owner") {
+            await bootstrapFirstOwner(me.uid, roleDoc);
+          } else {
+            await setAdminRole(me.uid, roleDoc);
+          }
         }
         setMyRole(mine.role || "viewer");
       } catch (de) {
@@ -97686,7 +97691,7 @@ function mAe() {
                         x.jsx("span", {
                           className:
                             "text-[10px] font-extrabold text-zinc-500 uppercase tracking-widest px-3 block mb-2",
-                          children: "Instructions",
+                          children: "Menu",
                         }),
                       x.jsxs("button", {
                         onClick: () => {
@@ -98006,7 +98011,7 @@ function mAe() {
                               x.jsx("span", {
                                 className:
                                   "text-[10px] font-extrabold text-zinc-500 uppercase tracking-widest px-3 block mb-2",
-                                children: "Instructions",
+                                children: "Menu",
                               }),
                               x.jsxs("button", {
                                 onClick: () => {

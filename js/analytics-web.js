@@ -62,6 +62,20 @@ export async function setAdminRole(uid, data) {
   await restSetDocs([{ collection: "admin_roles", id: uid, data }]);
 }
 
+// Claims the very first Owner slot: writes the admin's admin_roles row
+// and the admin_meta/bootstrap marker in a single commit, so
+// firestore.rules can enforce that this can only ever happen once.
+export async function bootstrapFirstOwner(uid, roleData) {
+  await restSetDocs([
+    { collection: "admin_roles", id: uid, data: roleData },
+    {
+      collection: "admin_meta",
+      id: "bootstrap",
+      data: { ownerUid: uid, createdAt: new Date().toISOString() },
+    },
+  ]);
+}
+
 // Removes an admin's role row (revokes their organizational role label;
 // does NOT delete their Firebase Auth account — that must still be done
 // from the Firebase Console).

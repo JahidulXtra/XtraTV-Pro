@@ -9,6 +9,7 @@ A modern live IPTV streaming platform. Browse channels by category, search, add 
 - Category-based browsing and search
 - Add custom channels from `.m3u` / `.m3u8` playlist files or direct links
 - Favorites and local preferences saved per device
+- **Recently Watched (Watch History)** — automatically remembers the last 20 channels you played, most-recent-first, saved on-device (`localStorage`, key `iptv_watch_history`); includes a "clear history" action
 - Scrolling news/announcement ticker
 - Auto screen-orientation handling for fullscreen playback (`js/orientation-web.js`)
 
@@ -45,7 +46,6 @@ A modern live IPTV streaming platform. Browse channels by category, search, add 
 - `svg/logo.svg` — app logo / favicon
 - `img/banner.jpg` — promo/banner image
 - `firestore.rules` — Firestore security rules (channels, analytics, admin roles)
-- `LICENSE` — MIT license text
 
 ## Data
 Channel data is stored and synced in real time via **Firebase Firestore**. Live streams are played directly from their HLS (`.m3u8`) sources.
