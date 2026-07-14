@@ -19,6 +19,7 @@ A modern live IPTV streaming platform. Browse channels by category, search, add 
   - **Restore Backup (JSON)** — re-import channels from an exported file (or any JSON shaped like `{ "channels": [...] }` / a plain array of channel objects)
   - **Dead-Link Checker** — tests every channel's stream URL with the same hls.js engine the player uses, so a pass means it will actually play; runs 5 at a time so large lists don't freeze the tab; each channel gets up to 9s before being marked `BROKEN`. Results show as `UNCHECKED`, `OK`, `OK*` (weaker fallback check, e.g. Safari's native HLS path), or `BROKEN`
   - **Bulk category reassign** — select multiple channels via checkboxes (current page only, filtered-out channels unaffected) and reassign them to a category in one action
+  - **Bulk delete** — select multiple channels via the same checkboxes and delete them all in one confirmed action, instead of deleting each one individually
 - **Visitor Analytics** — traffic charts with date-range filters (today/week/month/year/custom)
   - **Most-Watched Channels report** — ranks channels by anonymous view-count events logged to the `channel_hits` Firestore collection (no personal data — just channel id/name, timestamp, device type), with the same date-range filter and a "clear channel-view history" action
 - **Admins & Roles** (visible to **Owner** role only) — create new admin accounts (email + temporary password via Firebase Auth) and assign roles:
