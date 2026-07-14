@@ -6,13 +6,56 @@
     <meta name="theme-color" content="#030303" />
     <meta name="description" content="Xtra TV Pro — live IPTV streaming, browse channels by category, search, and watch live TV in your browser." />
     <title>Xtra TV Pro</title>
+    <link rel="canonical" href="https://xtratvpro.pages.dev/" />
+    <meta name="google-site-verification" content="a94ef265c83e9518" />
     <link rel="icon" type="image/svg+xml" href="/svg/logo.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/img/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Xtra TV Pro" />
+    <meta property="og:title" content="Xtra TV Pro — Watch Live TV Online" />
+    <meta property="og:description" content="Xtra TV Pro — live IPTV streaming, browse channels by category, search, and watch live TV in your browser." />
+    <meta property="og:url" content="https://xtratvpro.pages.dev/" />
+    <meta property="og:image" content="https://xtratvpro.pages.dev/img/banner.jpg" />
+    <meta property="og:image:width" content="868" />
+    <meta property="og:image:height" content="292" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Xtra TV Pro — Watch Live TV Online" />
+    <meta name="twitter:description" content="Xtra TV Pro — live IPTV streaming, browse channels by category, search, and watch live TV in your browser." />
+    <meta name="twitter:image" content="https://xtratvpro.pages.dev/img/banner.jpg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preconnect" href="https://firestore.googleapis.com" />
     <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
     <link rel="stylesheet" crossorigin href="/css/app.css" />
     <script type="module" crossorigin src="/js/app.js"></script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Xtra TV Pro",
+        "url": "https://xtratvpro.pages.dev/",
+        "description": "Live IPTV streaming — browse channels by category, search, and watch live TV in your browser.",
+        "applicationCategory": "EntertainmentApplication",
+        "operatingSystem": "Any",
+        "image": "https://xtratvpro.pages.dev/img/banner.jpg"
+      }
+    </script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(() => {
+            /* offline support unavailable, app still works online */
+          });
+        });
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
