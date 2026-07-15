@@ -49852,7 +49852,7 @@ function pS({
 }
 const _O = [
     { value: "All", label: "All Channels" },
-    { value: "Trending", label: "Trending" },
+    { value: "Movies", label: "Movies" },
     { value: "News", label: "News" },
     { value: "Sports", label: "Sports" },
     { value: "Music", label: "Music" },
@@ -50230,6 +50230,7 @@ function qh({
                         className: "flex flex-col space-y-12",
                         children: (() => {
                           const q = [
+                              "Movies",
                               "News",
                               "Sports",
                               "Music",
@@ -50241,6 +50242,7 @@ function qh({
                               new Set(ne.map((Te) => Te.category)),
                             ).filter((Te) => Te && q.includes(Te)),
                             ge = [
+                              "Movies",
                               "News",
                               "Sports",
                               "Music",
@@ -50260,6 +50262,13 @@ function qh({
                                     : Te.localeCompare(Pe, "bn");
                             }),
                             Y = {
+                              Movies: {
+                                title: "Movies",
+                                englishTitle: "Movies",
+                                icon: x.jsx(vne, {
+                                  className: "w-4 h-4 text-sky-400",
+                                }),
+                              },
                               News: {
                                 title: "News",
                                 englishTitle: "News",
@@ -51403,6 +51412,11 @@ function hre({ isOpen: t, onClose: e, onAdd: n }) {
                         "w-full px-3.5 py-2.5 bg-white/5 border border-white/10 focus:border-sky-500/50 text-zinc-200 text-sm rounded-xl focus:outline-none transition-all cursor-pointer select-none",
                       children: [
                         x.jsx("option", {
+                          value: "Movies",
+                          className: "bg-[#0f0f0f] text-zinc-300",
+                          children: "Movies",
+                        }),
+                        x.jsx("option", {
                           value: "News",
                           className: "bg-[#0f0f0f] text-zinc-300",
                           children: "News",
@@ -51426,11 +51440,6 @@ function hre({ isOpen: t, onClose: e, onAdd: n }) {
                           value: "Entertainment",
                           className: "bg-[#0f0f0f] text-zinc-300",
                           children: "Entertainment",
-                        }),
-                        x.jsx("option", {
-                          value: "Trending",
-                          className: "bg-[#0f0f0f] text-zinc-300",
-                          children: "Trending",
                         }),
                         x.jsx("option", {
                           value: "Kids Zone",
@@ -94086,12 +94095,12 @@ th{background:#f4f4f4}
                             }),
                             [
                               "All",
+                              "Movies",
                               "News",
                               "Sports",
                               "Music",
                               "Documentary",
                               "Entertainment",
-                              "Trending",
                               "Custom",
                             ].map((de) =>
                               x.jsx(
@@ -94222,6 +94231,10 @@ th{background:#f4f4f4}
                                               "w-full px-3 py-2 bg-[#0a0a0a] border border-white/10 text-xs rounded-xl focus:outline-none focus:border-indigo-500 text-zinc-200",
                                             children: [
                                               x.jsx("option", {
+                                                value: "Movies",
+                                                children: "Movies",
+                                              }),
+                                              x.jsx("option", {
                                                 value: "News",
                                                 children: "News",
                                               }),
@@ -94240,10 +94253,6 @@ th{background:#f4f4f4}
                                               x.jsx("option", {
                                                 value: "Entertainment",
                                                 children: "Entertainment",
-                                              }),
-                                              x.jsx("option", {
-                                                value: "Trending",
-                                                children: "Trending",
                                               }),
                                               x.jsx("option", {
                                                 value: "Kids Zone",
@@ -94386,12 +94395,12 @@ th{background:#f4f4f4}
                                 className:
                                   "px-3 py-2 bg-[#0a0a0a] border border-white/10 text-xs rounded-xl focus:outline-none focus:border-indigo-500 text-zinc-200",
                                 children: [
+                                  "Movies",
                                   "News",
                                   "Sports",
                                   "Music",
                                   "Documentary",
                                   "Entertainment",
-                                  "Trending",
                                   "Kids Zone",
                                   "Custom",
                                 ].map((de) =>
@@ -96403,6 +96412,10 @@ th{background:#f4f4f4}
                                     "w-full px-3 py-2 bg-[#090909] border border-white/10 text-xs rounded-xl focus:outline-none focus:border-indigo-500 text-zinc-200 cursor-pointer",
                                   children: [
                                     x.jsx("option", {
+                                      value: "Movies",
+                                      children: "Movies",
+                                    }),
+                                    x.jsx("option", {
                                       value: "News",
                                       children: "News",
                                     }),
@@ -96421,10 +96434,6 @@ th{background:#f4f4f4}
                                     x.jsx("option", {
                                       value: "Entertainment",
                                       children: "Entertainment",
-                                    }),
-                                    x.jsx("option", {
-                                      value: "Trending",
-                                      children: "Trending",
                                     }),
                                     x.jsx("option", {
                                       value: "Kids Zone",
