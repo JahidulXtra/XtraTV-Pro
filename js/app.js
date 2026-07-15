@@ -96857,12 +96857,23 @@ function mAe() {
     }),
     [tickerStartDraft, setTickerStartDraft] = _.useState(""),
     [tickerEndDraft, setTickerEndDraft] = _.useState(""),
+    // 🟢 APP CODE — admin-editable homepage banner image. Empty string
+    // means "use the built-in default banner image" (hAe / /img/banner.jpg).
+    // Synced from Firestore (featured_channels_config/settings), same
+    // pattern as the ticker text above.
+    [bannerImageUrl, setBannerImageUrl] = _.useState(() => {
+      try {
+        return rt.getItem("iptv_cached_banner_image_url") || "";
+      } catch {}
+      return "";
+    }),
+    [bannerImageUrlDraft, setBannerImageUrlDraft] = _.useState(""),
     [$, V] = _.useState(""),
     [Z, ne] = _.useState(""),
     [H, Q] = _.useState(!1);
   _.useEffect(() => {
-    (D(S), L(I), F(k), setTickerTextDraft(tickerText), setTickerEnabledDraft(tickerEnabled), setTickerStartDraft(tickerStart), setTickerEndDraft(tickerEnd));
-  }, [S, I, k, tickerText, tickerEnabled, tickerStart, tickerEnd]);
+    (D(S), L(I), F(k), setTickerTextDraft(tickerText), setTickerEnabledDraft(tickerEnabled), setTickerStartDraft(tickerStart), setTickerEndDraft(tickerEnd), setBannerImageUrlDraft(bannerImageUrl));
+  }, [S, I, k, tickerText, tickerEnabled, tickerStart, tickerEnd, bannerImageUrl]);
   const [q, ee] = _.useState("guest"),
     [ge, G] = _.useState(""),
     [Y, ue] = _.useState("user"),
@@ -97113,8 +97124,9 @@ function mAe() {
                 tkTxt = it.tickerText || "",
                 tkOn = it.tickerEnabled !== !1,
                 tkStart = it.tickerStartDate || "",
-                tkEnd = it.tickerEndDate || "";
-              (A(Tt), C(gn), N(zn), setTickerText(tkTxt), setTickerEnabled(tkOn), setTickerStart(tkStart), setTickerEnd(tkEnd));
+                tkEnd = it.tickerEndDate || "",
+                bannerUrl = it.bannerImageUrl || "";
+              (A(Tt), C(gn), N(zn), setTickerText(tkTxt), setTickerEnabled(tkOn), setTickerStart(tkStart), setTickerEnd(tkEnd), setBannerImageUrl(bannerUrl));
               try {
                 (rt.setItem("iptv_cached_featured_selected_ids", JSON.stringify(Tt)),
                   rt.setItem("iptv_cached_featured_rec_text", gn),
@@ -97122,12 +97134,13 @@ function mAe() {
                   rt.setItem("iptv_cached_ticker_text", tkTxt),
                   rt.setItem("iptv_cached_ticker_enabled", tkOn ? "1" : "0"),
                   rt.setItem("iptv_cached_ticker_start", tkStart),
-                  rt.setItem("iptv_cached_ticker_end", tkEnd));
+                  rt.setItem("iptv_cached_ticker_end", tkEnd),
+                  rt.setItem("iptv_cached_banner_image_url", bannerUrl));
               } catch {}
               bt = !0;
             }
           }),
-            bt || (A([]), C(""), N([]), setTickerText(""), setTickerEnabled(!0), setTickerStart(""), setTickerEnd("")));
+            bt || (A([]), C(""), N([]), setTickerText(""), setTickerEnabled(!0), setTickerStart(""), setTickerEnd(""), setBannerImageUrl("")));
         },
         (at) => {
           Ro(at, Ia.GET, "featured_channels_config/settings");
@@ -97504,7 +97517,7 @@ function mAe() {
       Le("All uploaded channels deleted successfully.", "success");
     },
     Ei = async () => {
-      (A(U), C(R), N(O), setTickerText(tickerTextDraft), setTickerEnabled(tickerEnabledDraft), setTickerStart(tickerStartDraft), setTickerEnd(tickerEndDraft));
+      (A(U), C(R), N(O), setTickerText(tickerTextDraft), setTickerEnabled(tickerEnabledDraft), setTickerStart(tickerStartDraft), setTickerEnd(tickerEndDraft), setBannerImageUrl(bannerImageUrlDraft));
       try {
         (rt.setItem("iptv_cached_featured_selected_ids", JSON.stringify(U)),
           rt.setItem("iptv_cached_featured_rec_text", R),
@@ -97512,7 +97525,8 @@ function mAe() {
           rt.setItem("iptv_cached_ticker_text", tickerTextDraft),
           rt.setItem("iptv_cached_ticker_enabled", tickerEnabledDraft ? "1" : "0"),
           rt.setItem("iptv_cached_ticker_start", tickerStartDraft),
-          rt.setItem("iptv_cached_ticker_end", tickerEndDraft));
+          rt.setItem("iptv_cached_ticker_end", tickerEndDraft),
+          rt.setItem("iptv_cached_banner_image_url", bannerImageUrlDraft));
       } catch (J) {
         console.warn("Could not cache Featured Channels settings locally:", J);
       }
@@ -97532,6 +97546,7 @@ function mAe() {
                 tickerEnabled: tickerEnabledDraft,
                 tickerStartDate: tickerStartDraft,
                 tickerEndDate: tickerEndDraft,
+                bannerImageUrl: bannerImageUrlDraft,
                 updatedAt: new Date().toISOString(),
               },
             },
@@ -98529,7 +98544,7 @@ function mAe() {
                                       className:
                                         "relative -mx-4 md:-mx-6 w-[calc(100%+2rem)] md:w-[calc(100%+3rem)] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.9)] group",
                                       children: x.jsx("img", {
-                                        src: hAe,
+                                        src: bannerImageUrl || hAe,
                                         alt: "Banner",
                                         className:
                                           "w-full h-auto object-contain block select-none pointer-events-none transition duration-700 ease-out group-hover:scale-[1.005]",
@@ -99049,7 +99064,7 @@ function mAe() {
                                                             className:
                                                               "flex items-center gap-2",
                                                             children: [
-                                                              x.jsx(zl, {
+                                                              x.jsx(jne, {
                                                                 className:
                                                                   "w-4 h-4 text-yellow-400",
                                                               }),
@@ -99232,7 +99247,7 @@ function mAe() {
                                                                 className:
                                                                   "flex items-center gap-2 mb-3.5",
                                                                 children: [
-                                                                  x.jsx(Kf, {
+                                                                  x.jsx(Ma, {
                                                                     className:
                                                                       "w-4 h-4 text-indigo-400",
                                                                   }),
@@ -99429,7 +99444,7 @@ function mAe() {
                                                       className:
                                                         "flex items-center gap-2",
                                                       children: [
-                                                        x.jsx(zl, {
+                                                        x.jsx(Wne, {
                                                           className:
                                                             "w-4 h-4 text-yellow-400",
                                                         }),
@@ -99528,6 +99543,75 @@ function mAe() {
                                                   children:
                                                     "Leave both blank to control visibility with the toggle above only. Set either date to auto start/stop the announcement on those days.",
                                                 }),
+                                              ],
+                                            }),
+                                          q === "admin" &&
+                                            x.jsxs("div", {
+                                              className:
+                                                "mt-6 border border-white/5 bg-[#050505]/40 rounded-xl p-4 space-y-3.5",
+                                              children: [
+                                                x.jsxs("div", {
+                                                  className:
+                                                    "flex items-center gap-2",
+                                                  children: [
+                                                    x.jsx(jte, {
+                                                      className:
+                                                        "w-4 h-4 text-yellow-400",
+                                                    }),
+                                                    x.jsx("span", {
+                                                      className:
+                                                        "text-xs font-black text-zinc-300 uppercase tracking-widest",
+                                                      children:
+                                                        "4. Homepage Banner Image",
+                                                    }),
+                                                  ],
+                                                }),
+                                                x.jsxs("div", {
+                                                  children: [
+                                                    x.jsx("label", {
+                                                      className:
+                                                        "block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5",
+                                                      children:
+                                                        "Banner image URL (leave blank to use the default banner):",
+                                                    }),
+                                                    x.jsx("input", {
+                                                      type: "text",
+                                                      value: bannerImageUrlDraft,
+                                                      onChange: (J) =>
+                                                        setBannerImageUrlDraft(
+                                                          J.target.value,
+                                                        ),
+                                                      placeholder:
+                                                        "https://example.com/my-banner.jpg",
+                                                      className:
+                                                        "w-full px-3.5 py-3 bg-[#090909] border border-white/10 text-xs rounded-xl focus:outline-none focus:border-yellow-400/40 font-mono text-zinc-100 placeholder-zinc-700",
+                                                    }),
+                                                    x.jsx("p", {
+                                                      className:
+                                                        "text-[10px] text-zinc-500 mt-1.5",
+                                                      children:
+                                                        "Upload your image to any free image host first (e.g. imgur, ImgBB), then paste the direct image link here. Saved together with the \"Save Config\" button above.",
+                                                    }),
+                                                  ],
+                                                }),
+                                                bannerImageUrlDraft &&
+                                                  x.jsxs("div", {
+                                                    children: [
+                                                      x.jsx("span", {
+                                                        className:
+                                                          "block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5",
+                                                        children: "Preview:",
+                                                      }),
+                                                      x.jsx("img", {
+                                                        src: bannerImageUrlDraft,
+                                                        alt: "Banner preview",
+                                                        referrerPolicy:
+                                                          "no-referrer",
+                                                        className:
+                                                          "w-full h-auto max-h-40 object-contain rounded-xl border border-white/10 bg-black/40",
+                                                      }),
+                                                    ],
+                                                  }),
                                               ],
                                             }),
                                           (I || k.length > 0) &&
