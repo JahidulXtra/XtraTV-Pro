@@ -92540,6 +92540,13 @@ function dAe({
     // "channel_hits", one doc per channel-select event across all visitors)
     [chHits, setChHits] = _.useState([]),
     [chLoading, setChLoading] = _.useState(!1),
+    // 🟢 APP CODE — Most-Watched Channels kept ranking channels that had
+    // already been deleted from the Channel Guide (channel_hits is never
+    // cleaned up on channel delete, so old hit-events lived on forever).
+    // This toggle lets the admin choose whether deleted channels are
+    // included in the ranking; default is OFF so the report only shows
+    // channels that still exist. See topChannelsData below for the fix.
+    [showDeletedChannels, setShowDeletedChannels] = _.useState(!1),
     // 🟢 APP CODE — multi-admin roster/roles state ("admin_roles"
     // collection: owner / editor / viewer, keyed by Firebase Auth uid)
     [myUid, setMyUid] = _.useState(""),
@@ -93112,18 +93119,44 @@ function dAe({
                   : on.dateStr >= k && on.dateStr <= U
                 : !0;
         });
+      // 🟢 APP CODE — channel_hits keeps one doc per view forever and is
+      // never cleaned up when a channel is deleted from the Channel
+      // Guide, so this report used to rank deleted channels right
+      // alongside live ones with no indication they were gone. We now
+      // check every hit's channelId against the current channel list
+      // and mark it isDeleted, then (unless showDeletedChannels is on)
+      // filter deleted channels out BEFORE taking the top 10, so the
+      // default view is always the top 10 among currently-live channels.
+      const currentChannelsById = new Map(t.map((c) => [c.id, c]));
       let on = {};
       return (
         Le.forEach((Xn) => {
-          const Vn = Xn.channelId;
-          on[Vn] || (on[Vn] = { channelId: Vn, name: Xn.channelName || "Unknown", views: 0 });
+          const Vn = Xn.channelId,
+            liveChannel = currentChannelsById.get(Vn);
+          on[Vn] ||
+            (on[Vn] = {
+              channelId: Vn,
+              name: Xn.channelName || "Unknown",
+              views: 0,
+              isDeleted: !liveChannel,
+              // 🟢 APP CODE — logo isn't stored on the hit doc itself (no
+              // point duplicating it on every event), so look it up from
+              // the live channel list instead. Deleted channels simply
+              // won't have one, and the UI falls back to a placeholder icon.
+              logo: liveChannel ? liveChannel.logo : null,
+              // 🟢 APP CODE — same idea for category: looked up live so it
+              // always reflects the channel's current category, and is
+              // simply absent for deleted channels.
+              category: liveChannel ? liveChannel.category : null,
+            });
           on[Vn].views++;
         }),
         Object.values(on)
+          .filter((Xn) => showDeletedChannels || !Xn.isDeleted)
           .sort((Xn, Vn) => Vn.views - Xn.views)
           .slice(0, 10)
       );
-    }, [chHits, I, k, U]),
+    }, [chHits, I, k, U, t, showDeletedChannels]),
     bi = async () => {
       if (Z0()) {
         alert(
@@ -93286,6 +93319,9 @@ function dAe({
           rank: We + 1,
           channelName: Je.name,
           views: Je.views,
+          // 🟢 APP CODE — surface deleted-channel status in the export too,
+          // so the CSV matches what the dashboard shows.
+          status: Je.isDeleted ? "Deleted" : "Live",
         }));
         (downloadCSV(
           de,
@@ -95683,6 +95719,26 @@ th{background:#f4f4f4}
                             x.jsxs("div", {
                               className: "flex items-center gap-2",
                               children: [
+                                // 🟢 APP CODE — checkbox to toggle whether
+                                // deleted channels are included in the
+                                // ranking. Defaults to OFF (see
+                                // showDeletedChannels state) so the report
+                                // shows only currently-live channels unless
+                                // the admin explicitly asks to see history
+                                // that includes deleted ones.
+                                x.jsxs("label", {
+                                  className:
+                                    "flex items-center gap-1.5 text-[10px] text-zinc-400 font-bold uppercase tracking-wide cursor-pointer select-none",
+                                  children: [
+                                    x.jsx("input", {
+                                      type: "checkbox",
+                                      checked: showDeletedChannels,
+                                      onChange: (de) => setShowDeletedChannels(de.target.checked),
+                                      className: "w-3 h-3 accent-fuchsia-500",
+                                    }),
+                                    "Show deleted channels",
+                                  ],
+                                }),
                                 x.jsxs("button", {
                                   type: "button",
                                   onClick: exportChannelHitsCSV,
@@ -95726,31 +95782,96 @@ th{background:#f4f4f4}
                                   const We =
                                     topChannelsData[0].views > 0
                                       ? Math.round((de.views / topChannelsData[0].views) * 100)
-                                      : 0;
+                                      : 0,
+                                    // 🟢 APP CODE — color-code the rank badge:
+                                    // gold/silver/bronze for the top 3, and
+                                    // the original fuchsia for the rest.
+                                    rankBadgeClass =
+                                      Je === 0
+                                        ? "bg-yellow-400/15 text-yellow-400"
+                                        : Je === 1
+                                          ? "bg-slate-300/15 text-slate-300"
+                                          : Je === 2
+                                            ? "bg-amber-600/15 text-amber-500"
+                                            : "bg-fuchsia-400/10 text-fuchsia-400";
                                   return x.jsxs(
                                     "div",
                                     {
                                       className: "space-y-1",
                                       children: [
                                         x.jsxs("div", {
-                                          className: "flex justify-between items-center text-xs",
+                                          className: "flex justify-between items-center text-xs gap-2",
                                           children: [
                                             x.jsxs("div", {
-                                              className: "flex items-center gap-2",
+                                              // 🟢 APP CODE — min-w-0 lets this flex child
+                                              // actually shrink below its content size, which
+                                              // is required for the name's "truncate" below to
+                                              // work instead of overflowing the row on mobile.
+                                              className: "flex items-center gap-2 min-w-0",
                                               children: [
                                                 x.jsxs("span", {
-                                                  className:
-                                                    "w-5 text-[10px] text-fuchsia-400 font-mono font-bold",
+                                                  className: `w-6 h-5 flex items-center justify-center rounded text-[10px] font-mono font-bold shrink-0 ${rankBadgeClass}`,
                                                   children: ["#", Je + 1],
                                                 }),
+                                                // 🟢 APP CODE — small channel
+                                                // logo thumbnail next to the
+                                                // name, same look as the
+                                                // Channel Guide Manager table.
+                                                // Falls back to a generic Tv
+                                                // icon when there's no logo
+                                                // (e.g. a deleted channel).
+                                                x.jsx("div", {
+                                                  className:
+                                                    "w-5 h-5 rounded bg-white p-0.5 flex items-center justify-center overflow-hidden border border-white/10 shrink-0",
+                                                  children: de.logo
+                                                    ? x.jsx("img", {
+                                                        src: de.logo,
+                                                        loading: "lazy",
+                                                        decoding: "async",
+                                                        alt: "",
+                                                        className:
+                                                          "max-w-full max-h-full object-contain",
+                                                        referrerPolicy: "no-referrer",
+                                                      })
+                                                    : x.jsx(Ma, {
+                                                        className: "w-3 h-3 text-black",
+                                                      }),
+                                                }),
+                                                // 🟢 APP CODE — truncate long channel names
+                                                // with an ellipsis instead of letting them
+                                                // overflow and push the category/deleted
+                                                // badges (or the view count) off-screen on
+                                                // narrow mobile widths.
                                                 x.jsx("span", {
-                                                  className: "text-zinc-200 font-bold",
+                                                  className: "text-zinc-200 font-bold truncate min-w-0",
+                                                  title: de.name,
                                                   children: de.name,
                                                 }),
+                                                // 🟢 APP CODE — category badge, looked up
+                                                // live from the current channel list.
+                                                // Absent for deleted channels since they
+                                                // no longer have a category.
+                                                de.category &&
+                                                  x.jsx("span", {
+                                                    className:
+                                                      "text-[9px] text-indigo-300 font-bold uppercase tracking-wide bg-indigo-500/10 px-1.5 py-0.5 rounded shrink-0",
+                                                    children: de.category,
+                                                  }),
+                                                // 🟢 APP CODE — flag channels
+                                                // that no longer exist in the
+                                                // Channel Guide, instead of
+                                                // silently ranking them like
+                                                // live channels.
+                                                de.isDeleted &&
+                                                  x.jsx("span", {
+                                                    className:
+                                                      "text-[9px] text-zinc-500 font-bold uppercase tracking-wide bg-white/5 px-1.5 py-0.5 rounded",
+                                                    children: "Deleted",
+                                                  }),
                                               ],
                                             }),
                                             x.jsxs("span", {
-                                              className: "text-white font-mono font-bold",
+                                              className: "text-white font-mono font-bold shrink-0",
                                               children: [
                                                 de.views.toLocaleString(),
                                                 " views",
