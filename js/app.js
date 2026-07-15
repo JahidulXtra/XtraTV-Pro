@@ -49852,7 +49852,7 @@ function pS({
 }
 const _O = [
     { value: "All", label: "All Channels" },
-    { value: "Trending", label: "Trending" },
+    { value: "Movies", label: "Movies" },
     { value: "News", label: "News" },
     { value: "Sports", label: "Sports" },
     { value: "Music", label: "Music" },
@@ -50230,6 +50230,7 @@ function qh({
                         className: "flex flex-col space-y-12",
                         children: (() => {
                           const q = [
+                              "Movies",
                               "News",
                               "Sports",
                               "Music",
@@ -50241,6 +50242,7 @@ function qh({
                               new Set(ne.map((Te) => Te.category)),
                             ).filter((Te) => Te && q.includes(Te)),
                             ge = [
+                              "Movies",
                               "News",
                               "Sports",
                               "Music",
@@ -50260,6 +50262,13 @@ function qh({
                                     : Te.localeCompare(Pe, "bn");
                             }),
                             Y = {
+                              Movies: {
+                                title: "Movies",
+                                englishTitle: "Movies",
+                                icon: x.jsx(vne, {
+                                  className: "w-4 h-4 text-sky-400",
+                                }),
+                              },
                               News: {
                                 title: "News",
                                 englishTitle: "News",
@@ -51403,6 +51412,11 @@ function hre({ isOpen: t, onClose: e, onAdd: n }) {
                         "w-full px-3.5 py-2.5 bg-white/5 border border-white/10 focus:border-sky-500/50 text-zinc-200 text-sm rounded-xl focus:outline-none transition-all cursor-pointer select-none",
                       children: [
                         x.jsx("option", {
+                          value: "Movies",
+                          className: "bg-[#0f0f0f] text-zinc-300",
+                          children: "Movies",
+                        }),
+                        x.jsx("option", {
                           value: "News",
                           className: "bg-[#0f0f0f] text-zinc-300",
                           children: "News",
@@ -51426,11 +51440,6 @@ function hre({ isOpen: t, onClose: e, onAdd: n }) {
                           value: "Entertainment",
                           className: "bg-[#0f0f0f] text-zinc-300",
                           children: "Entertainment",
-                        }),
-                        x.jsx("option", {
-                          value: "Trending",
-                          className: "bg-[#0f0f0f] text-zinc-300",
-                          children: "Trending",
                         }),
                         x.jsx("option", {
                           value: "Kids Zone",
@@ -92531,6 +92540,13 @@ function dAe({
     // "channel_hits", one doc per channel-select event across all visitors)
     [chHits, setChHits] = _.useState([]),
     [chLoading, setChLoading] = _.useState(!1),
+    // 🟢 APP CODE — Most-Watched Channels kept ranking channels that had
+    // already been deleted from the Channel Guide (channel_hits is never
+    // cleaned up on channel delete, so old hit-events lived on forever).
+    // This toggle lets the admin choose whether deleted channels are
+    // included in the ranking; default is OFF so the report only shows
+    // channels that still exist. See topChannelsData below for the fix.
+    [showDeletedChannels, setShowDeletedChannels] = _.useState(!1),
     // 🟢 APP CODE — multi-admin roster/roles state ("admin_roles"
     // collection: owner / editor / viewer, keyed by Firebase Auth uid)
     [myUid, setMyUid] = _.useState(""),
@@ -93103,18 +93119,44 @@ function dAe({
                   : on.dateStr >= k && on.dateStr <= U
                 : !0;
         });
+      // 🟢 APP CODE — channel_hits keeps one doc per view forever and is
+      // never cleaned up when a channel is deleted from the Channel
+      // Guide, so this report used to rank deleted channels right
+      // alongside live ones with no indication they were gone. We now
+      // check every hit's channelId against the current channel list
+      // and mark it isDeleted, then (unless showDeletedChannels is on)
+      // filter deleted channels out BEFORE taking the top 10, so the
+      // default view is always the top 10 among currently-live channels.
+      const currentChannelsById = new Map(t.map((c) => [c.id, c]));
       let on = {};
       return (
         Le.forEach((Xn) => {
-          const Vn = Xn.channelId;
-          on[Vn] || (on[Vn] = { channelId: Vn, name: Xn.channelName || "Unknown", views: 0 });
+          const Vn = Xn.channelId,
+            liveChannel = currentChannelsById.get(Vn);
+          on[Vn] ||
+            (on[Vn] = {
+              channelId: Vn,
+              name: Xn.channelName || "Unknown",
+              views: 0,
+              isDeleted: !liveChannel,
+              // 🟢 APP CODE — logo isn't stored on the hit doc itself (no
+              // point duplicating it on every event), so look it up from
+              // the live channel list instead. Deleted channels simply
+              // won't have one, and the UI falls back to a placeholder icon.
+              logo: liveChannel ? liveChannel.logo : null,
+              // 🟢 APP CODE — same idea for category: looked up live so it
+              // always reflects the channel's current category, and is
+              // simply absent for deleted channels.
+              category: liveChannel ? liveChannel.category : null,
+            });
           on[Vn].views++;
         }),
         Object.values(on)
+          .filter((Xn) => showDeletedChannels || !Xn.isDeleted)
           .sort((Xn, Vn) => Vn.views - Xn.views)
           .slice(0, 10)
       );
-    }, [chHits, I, k, U]),
+    }, [chHits, I, k, U, t, showDeletedChannels]),
     bi = async () => {
       if (Z0()) {
         alert(
@@ -93277,6 +93319,9 @@ function dAe({
           rank: We + 1,
           channelName: Je.name,
           views: Je.views,
+          // 🟢 APP CODE — surface deleted-channel status in the export too,
+          // so the CSV matches what the dashboard shows.
+          status: Je.isDeleted ? "Deleted" : "Live",
         }));
         (downloadCSV(
           de,
@@ -94086,12 +94131,12 @@ th{background:#f4f4f4}
                             }),
                             [
                               "All",
+                              "Movies",
                               "News",
                               "Sports",
                               "Music",
                               "Documentary",
                               "Entertainment",
-                              "Trending",
                               "Custom",
                             ].map((de) =>
                               x.jsx(
@@ -94222,6 +94267,10 @@ th{background:#f4f4f4}
                                               "w-full px-3 py-2 bg-[#0a0a0a] border border-white/10 text-xs rounded-xl focus:outline-none focus:border-indigo-500 text-zinc-200",
                                             children: [
                                               x.jsx("option", {
+                                                value: "Movies",
+                                                children: "Movies",
+                                              }),
+                                              x.jsx("option", {
                                                 value: "News",
                                                 children: "News",
                                               }),
@@ -94240,10 +94289,6 @@ th{background:#f4f4f4}
                                               x.jsx("option", {
                                                 value: "Entertainment",
                                                 children: "Entertainment",
-                                              }),
-                                              x.jsx("option", {
-                                                value: "Trending",
-                                                children: "Trending",
                                               }),
                                               x.jsx("option", {
                                                 value: "Kids Zone",
@@ -94386,12 +94431,12 @@ th{background:#f4f4f4}
                                 className:
                                   "px-3 py-2 bg-[#0a0a0a] border border-white/10 text-xs rounded-xl focus:outline-none focus:border-indigo-500 text-zinc-200",
                                 children: [
+                                  "Movies",
                                   "News",
                                   "Sports",
                                   "Music",
                                   "Documentary",
                                   "Entertainment",
-                                  "Trending",
                                   "Kids Zone",
                                   "Custom",
                                 ].map((de) =>
@@ -95674,6 +95719,26 @@ th{background:#f4f4f4}
                             x.jsxs("div", {
                               className: "flex items-center gap-2",
                               children: [
+                                // 🟢 APP CODE — checkbox to toggle whether
+                                // deleted channels are included in the
+                                // ranking. Defaults to OFF (see
+                                // showDeletedChannels state) so the report
+                                // shows only currently-live channels unless
+                                // the admin explicitly asks to see history
+                                // that includes deleted ones.
+                                x.jsxs("label", {
+                                  className:
+                                    "flex items-center gap-1.5 text-[10px] text-zinc-400 font-bold uppercase tracking-wide cursor-pointer select-none",
+                                  children: [
+                                    x.jsx("input", {
+                                      type: "checkbox",
+                                      checked: showDeletedChannels,
+                                      onChange: (de) => setShowDeletedChannels(de.target.checked),
+                                      className: "w-3 h-3 accent-fuchsia-500",
+                                    }),
+                                    "Show deleted channels",
+                                  ],
+                                }),
                                 x.jsxs("button", {
                                   type: "button",
                                   onClick: exportChannelHitsCSV,
@@ -95717,31 +95782,96 @@ th{background:#f4f4f4}
                                   const We =
                                     topChannelsData[0].views > 0
                                       ? Math.round((de.views / topChannelsData[0].views) * 100)
-                                      : 0;
+                                      : 0,
+                                    // 🟢 APP CODE — color-code the rank badge:
+                                    // gold/silver/bronze for the top 3, and
+                                    // the original fuchsia for the rest.
+                                    rankBadgeClass =
+                                      Je === 0
+                                        ? "bg-yellow-400/15 text-yellow-400"
+                                        : Je === 1
+                                          ? "bg-slate-300/15 text-slate-300"
+                                          : Je === 2
+                                            ? "bg-amber-600/15 text-amber-500"
+                                            : "bg-fuchsia-400/10 text-fuchsia-400";
                                   return x.jsxs(
                                     "div",
                                     {
                                       className: "space-y-1",
                                       children: [
                                         x.jsxs("div", {
-                                          className: "flex justify-between items-center text-xs",
+                                          className: "flex justify-between items-center text-xs gap-2",
                                           children: [
                                             x.jsxs("div", {
-                                              className: "flex items-center gap-2",
+                                              // 🟢 APP CODE — min-w-0 lets this flex child
+                                              // actually shrink below its content size, which
+                                              // is required for the name's "truncate" below to
+                                              // work instead of overflowing the row on mobile.
+                                              className: "flex items-center gap-2 min-w-0",
                                               children: [
                                                 x.jsxs("span", {
-                                                  className:
-                                                    "w-5 text-[10px] text-fuchsia-400 font-mono font-bold",
+                                                  className: `w-6 h-5 flex items-center justify-center rounded text-[10px] font-mono font-bold shrink-0 ${rankBadgeClass}`,
                                                   children: ["#", Je + 1],
                                                 }),
+                                                // 🟢 APP CODE — small channel
+                                                // logo thumbnail next to the
+                                                // name, same look as the
+                                                // Channel Guide Manager table.
+                                                // Falls back to a generic Tv
+                                                // icon when there's no logo
+                                                // (e.g. a deleted channel).
+                                                x.jsx("div", {
+                                                  className:
+                                                    "w-5 h-5 rounded bg-white p-0.5 flex items-center justify-center overflow-hidden border border-white/10 shrink-0",
+                                                  children: de.logo
+                                                    ? x.jsx("img", {
+                                                        src: de.logo,
+                                                        loading: "lazy",
+                                                        decoding: "async",
+                                                        alt: "",
+                                                        className:
+                                                          "max-w-full max-h-full object-contain",
+                                                        referrerPolicy: "no-referrer",
+                                                      })
+                                                    : x.jsx(Ma, {
+                                                        className: "w-3 h-3 text-black",
+                                                      }),
+                                                }),
+                                                // 🟢 APP CODE — truncate long channel names
+                                                // with an ellipsis instead of letting them
+                                                // overflow and push the category/deleted
+                                                // badges (or the view count) off-screen on
+                                                // narrow mobile widths.
                                                 x.jsx("span", {
-                                                  className: "text-zinc-200 font-bold",
+                                                  className: "text-zinc-200 font-bold truncate min-w-0",
+                                                  title: de.name,
                                                   children: de.name,
                                                 }),
+                                                // 🟢 APP CODE — category badge, looked up
+                                                // live from the current channel list.
+                                                // Absent for deleted channels since they
+                                                // no longer have a category.
+                                                de.category &&
+                                                  x.jsx("span", {
+                                                    className:
+                                                      "text-[9px] text-indigo-300 font-bold uppercase tracking-wide bg-indigo-500/10 px-1.5 py-0.5 rounded shrink-0",
+                                                    children: de.category,
+                                                  }),
+                                                // 🟢 APP CODE — flag channels
+                                                // that no longer exist in the
+                                                // Channel Guide, instead of
+                                                // silently ranking them like
+                                                // live channels.
+                                                de.isDeleted &&
+                                                  x.jsx("span", {
+                                                    className:
+                                                      "text-[9px] text-zinc-500 font-bold uppercase tracking-wide bg-white/5 px-1.5 py-0.5 rounded",
+                                                    children: "Deleted",
+                                                  }),
                                               ],
                                             }),
                                             x.jsxs("span", {
-                                              className: "text-white font-mono font-bold",
+                                              className: "text-white font-mono font-bold shrink-0",
                                               children: [
                                                 de.views.toLocaleString(),
                                                 " views",
@@ -96403,6 +96533,10 @@ th{background:#f4f4f4}
                                     "w-full px-3 py-2 bg-[#090909] border border-white/10 text-xs rounded-xl focus:outline-none focus:border-indigo-500 text-zinc-200 cursor-pointer",
                                   children: [
                                     x.jsx("option", {
+                                      value: "Movies",
+                                      children: "Movies",
+                                    }),
+                                    x.jsx("option", {
                                       value: "News",
                                       children: "News",
                                     }),
@@ -96421,10 +96555,6 @@ th{background:#f4f4f4}
                                     x.jsx("option", {
                                       value: "Entertainment",
                                       children: "Entertainment",
-                                    }),
-                                    x.jsx("option", {
-                                      value: "Trending",
-                                      children: "Trending",
                                     }),
                                     x.jsx("option", {
                                       value: "Kids Zone",
@@ -96848,12 +96978,23 @@ function mAe() {
     }),
     [tickerStartDraft, setTickerStartDraft] = _.useState(""),
     [tickerEndDraft, setTickerEndDraft] = _.useState(""),
+    // 🟢 APP CODE — admin-editable homepage banner image. Empty string
+    // means "use the built-in default banner image" (hAe / /img/banner.jpg).
+    // Synced from Firestore (featured_channels_config/settings), same
+    // pattern as the ticker text above.
+    [bannerImageUrl, setBannerImageUrl] = _.useState(() => {
+      try {
+        return rt.getItem("iptv_cached_banner_image_url") || "";
+      } catch {}
+      return "";
+    }),
+    [bannerImageUrlDraft, setBannerImageUrlDraft] = _.useState(""),
     [$, V] = _.useState(""),
     [Z, ne] = _.useState(""),
     [H, Q] = _.useState(!1);
   _.useEffect(() => {
-    (D(S), L(I), F(k), setTickerTextDraft(tickerText), setTickerEnabledDraft(tickerEnabled), setTickerStartDraft(tickerStart), setTickerEndDraft(tickerEnd));
-  }, [S, I, k, tickerText, tickerEnabled, tickerStart, tickerEnd]);
+    (D(S), L(I), F(k), setTickerTextDraft(tickerText), setTickerEnabledDraft(tickerEnabled), setTickerStartDraft(tickerStart), setTickerEndDraft(tickerEnd), setBannerImageUrlDraft(bannerImageUrl));
+  }, [S, I, k, tickerText, tickerEnabled, tickerStart, tickerEnd, bannerImageUrl]);
   const [q, ee] = _.useState("guest"),
     [ge, G] = _.useState(""),
     [Y, ue] = _.useState("user"),
@@ -97104,8 +97245,9 @@ function mAe() {
                 tkTxt = it.tickerText || "",
                 tkOn = it.tickerEnabled !== !1,
                 tkStart = it.tickerStartDate || "",
-                tkEnd = it.tickerEndDate || "";
-              (A(Tt), C(gn), N(zn), setTickerText(tkTxt), setTickerEnabled(tkOn), setTickerStart(tkStart), setTickerEnd(tkEnd));
+                tkEnd = it.tickerEndDate || "",
+                bannerUrl = it.bannerImageUrl || "";
+              (A(Tt), C(gn), N(zn), setTickerText(tkTxt), setTickerEnabled(tkOn), setTickerStart(tkStart), setTickerEnd(tkEnd), setBannerImageUrl(bannerUrl));
               try {
                 (rt.setItem("iptv_cached_featured_selected_ids", JSON.stringify(Tt)),
                   rt.setItem("iptv_cached_featured_rec_text", gn),
@@ -97113,12 +97255,13 @@ function mAe() {
                   rt.setItem("iptv_cached_ticker_text", tkTxt),
                   rt.setItem("iptv_cached_ticker_enabled", tkOn ? "1" : "0"),
                   rt.setItem("iptv_cached_ticker_start", tkStart),
-                  rt.setItem("iptv_cached_ticker_end", tkEnd));
+                  rt.setItem("iptv_cached_ticker_end", tkEnd),
+                  rt.setItem("iptv_cached_banner_image_url", bannerUrl));
               } catch {}
               bt = !0;
             }
           }),
-            bt || (A([]), C(""), N([]), setTickerText(""), setTickerEnabled(!0), setTickerStart(""), setTickerEnd("")));
+            bt || (A([]), C(""), N([]), setTickerText(""), setTickerEnabled(!0), setTickerStart(""), setTickerEnd(""), setBannerImageUrl("")));
         },
         (at) => {
           Ro(at, Ia.GET, "featured_channels_config/settings");
@@ -97495,7 +97638,7 @@ function mAe() {
       Le("All uploaded channels deleted successfully.", "success");
     },
     Ei = async () => {
-      (A(U), C(R), N(O), setTickerText(tickerTextDraft), setTickerEnabled(tickerEnabledDraft), setTickerStart(tickerStartDraft), setTickerEnd(tickerEndDraft));
+      (A(U), C(R), N(O), setTickerText(tickerTextDraft), setTickerEnabled(tickerEnabledDraft), setTickerStart(tickerStartDraft), setTickerEnd(tickerEndDraft), setBannerImageUrl(bannerImageUrlDraft));
       try {
         (rt.setItem("iptv_cached_featured_selected_ids", JSON.stringify(U)),
           rt.setItem("iptv_cached_featured_rec_text", R),
@@ -97503,7 +97646,8 @@ function mAe() {
           rt.setItem("iptv_cached_ticker_text", tickerTextDraft),
           rt.setItem("iptv_cached_ticker_enabled", tickerEnabledDraft ? "1" : "0"),
           rt.setItem("iptv_cached_ticker_start", tickerStartDraft),
-          rt.setItem("iptv_cached_ticker_end", tickerEndDraft));
+          rt.setItem("iptv_cached_ticker_end", tickerEndDraft),
+          rt.setItem("iptv_cached_banner_image_url", bannerImageUrlDraft));
       } catch (J) {
         console.warn("Could not cache Featured Channels settings locally:", J);
       }
@@ -97523,6 +97667,7 @@ function mAe() {
                 tickerEnabled: tickerEnabledDraft,
                 tickerStartDate: tickerStartDraft,
                 tickerEndDate: tickerEndDraft,
+                bannerImageUrl: bannerImageUrlDraft,
                 updatedAt: new Date().toISOString(),
               },
             },
@@ -98520,7 +98665,7 @@ function mAe() {
                                       className:
                                         "relative -mx-4 md:-mx-6 w-[calc(100%+2rem)] md:w-[calc(100%+3rem)] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.9)] group",
                                       children: x.jsx("img", {
-                                        src: hAe,
+                                        src: bannerImageUrl || hAe,
                                         alt: "Banner",
                                         className:
                                           "w-full h-auto object-contain block select-none pointer-events-none transition duration-700 ease-out group-hover:scale-[1.005]",
@@ -99040,7 +99185,7 @@ function mAe() {
                                                             className:
                                                               "flex items-center gap-2",
                                                             children: [
-                                                              x.jsx(zl, {
+                                                              x.jsx(jne, {
                                                                 className:
                                                                   "w-4 h-4 text-yellow-400",
                                                               }),
@@ -99223,7 +99368,7 @@ function mAe() {
                                                                 className:
                                                                   "flex items-center gap-2 mb-3.5",
                                                                 children: [
-                                                                  x.jsx(Kf, {
+                                                                  x.jsx(Ma, {
                                                                     className:
                                                                       "w-4 h-4 text-indigo-400",
                                                                   }),
@@ -99420,7 +99565,7 @@ function mAe() {
                                                       className:
                                                         "flex items-center gap-2",
                                                       children: [
-                                                        x.jsx(zl, {
+                                                        x.jsx(Wne, {
                                                           className:
                                                             "w-4 h-4 text-yellow-400",
                                                         }),
@@ -99519,6 +99664,75 @@ function mAe() {
                                                   children:
                                                     "Leave both blank to control visibility with the toggle above only. Set either date to auto start/stop the announcement on those days.",
                                                 }),
+                                              ],
+                                            }),
+                                          q === "admin" &&
+                                            x.jsxs("div", {
+                                              className:
+                                                "mt-6 border border-white/5 bg-[#050505]/40 rounded-xl p-4 space-y-3.5",
+                                              children: [
+                                                x.jsxs("div", {
+                                                  className:
+                                                    "flex items-center gap-2",
+                                                  children: [
+                                                    x.jsx(jte, {
+                                                      className:
+                                                        "w-4 h-4 text-yellow-400",
+                                                    }),
+                                                    x.jsx("span", {
+                                                      className:
+                                                        "text-xs font-black text-zinc-300 uppercase tracking-widest",
+                                                      children:
+                                                        "4. Homepage Banner Image",
+                                                    }),
+                                                  ],
+                                                }),
+                                                x.jsxs("div", {
+                                                  children: [
+                                                    x.jsx("label", {
+                                                      className:
+                                                        "block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5",
+                                                      children:
+                                                        "Banner image URL (leave blank to use the default banner):",
+                                                    }),
+                                                    x.jsx("input", {
+                                                      type: "text",
+                                                      value: bannerImageUrlDraft,
+                                                      onChange: (J) =>
+                                                        setBannerImageUrlDraft(
+                                                          J.target.value,
+                                                        ),
+                                                      placeholder:
+                                                        "https://example.com/my-banner.jpg",
+                                                      className:
+                                                        "w-full px-3.5 py-3 bg-[#090909] border border-white/10 text-xs rounded-xl focus:outline-none focus:border-yellow-400/40 font-mono text-zinc-100 placeholder-zinc-700",
+                                                    }),
+                                                    x.jsx("p", {
+                                                      className:
+                                                        "text-[10px] text-zinc-500 mt-1.5",
+                                                      children:
+                                                        "Upload your image to any free image host first (e.g. imgur, ImgBB), then paste the direct image link here. Saved together with the \"Save Config\" button above.",
+                                                    }),
+                                                  ],
+                                                }),
+                                                bannerImageUrlDraft &&
+                                                  x.jsxs("div", {
+                                                    children: [
+                                                      x.jsx("span", {
+                                                        className:
+                                                          "block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5",
+                                                        children: "Preview:",
+                                                      }),
+                                                      x.jsx("img", {
+                                                        src: bannerImageUrlDraft,
+                                                        alt: "Banner preview",
+                                                        referrerPolicy:
+                                                          "no-referrer",
+                                                        className:
+                                                          "w-full h-auto max-h-40 object-contain rounded-xl border border-white/10 bg-black/40",
+                                                      }),
+                                                    ],
+                                                  }),
                                               ],
                                             }),
                                           (I || k.length > 0) &&

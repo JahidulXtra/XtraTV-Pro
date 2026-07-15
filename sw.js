@@ -1,6 +1,6 @@
 // Xtra TV Pro — service worker
 // Bump this on every deploy that changes cached files, so old caches get cleared.
-const CACHE_VERSION = "xtvp-v1";
+const CACHE_VERSION = "xtvp-v2";
 
 const PRECACHE_URLS = [
   "/",
