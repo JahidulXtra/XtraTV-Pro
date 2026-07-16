@@ -1,10 +1,11 @@
 // Xtra TV Pro — service worker
 // Bump this on every deploy that changes cached files, so old caches get cleared.
-const CACHE_VERSION = "xtvp-v2";
+const CACHE_VERSION = "xtvp-v3";
 
 const PRECACHE_URLS = [
   "/",
   "/index.html",
+  "/offline.html",
   "/css/app.css",
   "/js/app.js",
   "/svg/logo.svg",
@@ -50,7 +51,10 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Navigations: network-first, so users always get the latest app shell
-  // when online, with a cached fallback when offline.
+  // when online. Channel data is only ever fetched live from Firestore
+  // (never cached), so if the network is down, serving the cached app
+  // shell alone would just show an empty/broken screen. Show the
+  // dedicated offline page instead for a clean, intentional message.
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
@@ -59,7 +63,7 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_VERSION).then((cache) => cache.put("/index.html", copy));
           return response;
         })
-        .catch(() => caches.match("/index.html"))
+        .catch(() => caches.match("/offline.html"))
     );
     return;
   }
