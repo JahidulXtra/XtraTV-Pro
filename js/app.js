@@ -92566,6 +92566,14 @@ function dAe({
     [linkCheckResults, setLinkCheckResults] = _.useState({}),
     [linkCheckRunning, setLinkCheckRunning] = _.useState(!1),
     [linkCheckProgress, setLinkCheckProgress] = _.useState({ done: 0, total: 0 }),
+    // 🟢 APP CODE — lets the running dead-link check be cancelled
+    // mid-way via the "Stop" button; a ref (not state) so the in-flight
+    // async workers can read the latest value without re-render lag.
+    linkCheckStopRef = _.useRef(!1),
+    // 🟢 APP CODE — holds the cancel function for every check currently
+    // in flight, so Stop can resolve them right away instead of waiting
+    // up to 9s for each one's own timeout.
+    activeLinkChecksRef = _.useRef(new Set()),
     // 🟢 APP CODE — Audit Log (Owner-only): "who changed what, when" trail
     // of admin dashboard actions, backed by the "admin_audit_log" Firestore
     // collection (see js/audit-log.js). Append-only — see firestore.rules.
@@ -92876,34 +92884,48 @@ function dAe({
       }
       setSelectedIds([]);
     },
-    // 🟢 APP CODE — Dead-link checker: tests one channel's stream URL.
-    // Prefers hls.js (same engine used for real playback) so a "pass"
-    // here means the channel would actually play for a viewer right now;
-    // falls back to a plain network probe on browsers without MSE support.
-    checkSingleChannelLink = (de) =>
+    // 🟢 APP CODE — Dead-link checker (see linkCheckResults above): tests
+    // one channel's stream URL, falling back to a plain network probe on
+    // browsers without MSE support.
+    checkSingleChannelLink = (de, cancelSet) =>
       new Promise((Je) => {
         try {
           if (!de || !de.url) {
             Je({ ok: !1, method: "hls" });
             return;
           }
-          let We = !1;
+          let We = !1,
+            hlsInstance = null;
+          // 🟢 APP CODE — all completion paths (success, fatal error, the
+          // 9s timeout, or an external cancel) funnel through here
+          // exactly once, so cleanup (clearing the timer + destroying
+          // the Hls instance) always runs before the promise resolves.
           const Ke = (Xn, Yn) => {
-              We || ((We = !0), Je({ ok: Xn, method: Yn }));
+              We ||
+                ((We = !0),
+                clearTimeout(Le),
+                hlsInstance && hlsInstance.destroy(),
+                cancelSet && cancelSet.delete(cancelFn),
+                Je({ ok: Xn, method: Yn }));
             },
-            Le = setTimeout(() => Ke(!1, "hls"), 9000);
+            Le = setTimeout(() => Ke(!1, "hls"), 9000),
+            // 🟢 APP CODE — lets the caller abort this check on demand
+            // (used by the "Stop" button) instead of waiting it out.
+            cancelFn = () => Ke(!1, "cancelled");
+          cancelSet && cancelSet.add(cancelFn);
           if (Qi.isSupported()) {
             const Xn = document.createElement("video");
             Xn.muted = !0;
             const Vn = new Qi({ maxBufferLength: 5, enableWorker: !1 });
-            (Vn.on(Qi.Events.MANIFEST_PARSED, () => {
-              (clearTimeout(Le), Vn.destroy(), Ke(!0, "hls"));
-            }),
+            (hlsInstance = Vn),
+              Vn.on(Qi.Events.MANIFEST_PARSED, () => {
+                Ke(!0, "hls");
+              }),
               Vn.on(Qi.Events.ERROR, (Pn, no) => {
-                no.fatal && (clearTimeout(Le), Vn.destroy(), Ke(!1, "hls"));
+                no.fatal && Ke(!1, "hls");
               }),
               Vn.loadSource(de.url),
-              Vn.attachMedia(Xn));
+              Vn.attachMedia(Xn);
           } else
             // No hls.js support in this browser (e.g. Safari's native HLS
             // doesn't need it). Falls back to a plain no-cors fetch — but
@@ -92913,36 +92935,52 @@ function dAe({
             // show these passes as a weaker check rather than a plain OK.
             fetch(de.url, { method: "GET", mode: "no-cors" })
               .then(() => {
-                (clearTimeout(Le), Ke(!0, "fallback"));
+                Ke(!0, "fallback");
               })
               .catch(() => {
-                (clearTimeout(Le), Ke(!1, "fallback"));
+                Ke(!1, "fallback");
               });
         } catch {
           Je({ ok: !1, method: "hls" });
         }
       }),
-    // 🟢 APP CODE — runs the dead-link check across every channel with a
-    // small concurrency pool (5 at a time) so a large channel list doesn't
-    // block the tab or open hundreds of connections at once.
+    // 🟢 APP CODE — runs the dead-link check across only the channels
+    // currently visible in the UI (i.e. matching the active search text
+    // and category filter — "Or"), not the entire channel list. So a
+    // search for one channel checks just that channel, and picking the
+    // "Movies" category checks only Movies, etc. Uses a small concurrency
+    // pool (5 at a time) so a large channel list doesn't block the tab or
+    // open hundreds of connections at once.
     runDeadLinkCheck = async () => {
-      if (linkCheckRunning || t.length === 0) return;
+      if (linkCheckRunning || Or.length === 0) return;
+      // 🟢 APP CODE — snapshot the count once, up front. "Or" is a live
+      // memoized value that recalculates whenever the search box or
+      // category filter changes, so this keeps the total stable for the
+      // full duration of the run regardless of later filter edits.
+      const total = Or.length;
       (setLinkCheckRunning(!0),
         setLinkCheckResults({}),
-        setLinkCheckProgress({ done: 0, total: t.length }));
-      const de = [...t];
+        setLinkCheckProgress({ done: 0, total }),
+        (linkCheckStopRef.current = !1));
+      const de = [...Or];
       let Je = 0,
         We = 0;
+      activeLinkChecksRef.current.clear();
       const Ke = async () => {
-        for (; de.length > 0; ) {
+        for (; de.length > 0 && !linkCheckStopRef.current; ) {
           const Le = de.shift(),
-            on = await checkSingleChannelLink(Le),
+            on = await checkSingleChannelLink(Le, activeLinkChecksRef.current);
+          // A cancelled check (via Stop) never actually finished testing
+          // the link, so it's left out of the tally entirely — the
+          // channel stays "UNCHECKED" rather than being marked broken.
+          if (on.method === "cancelled") break;
+          const Xn =
             // "ok-limited" = passed via the no-cors fallback probe (no
             // hls.js support in this browser), which can't detect HTTP
             // errors on the stream. Not counted in the broken tally below
             // (the probe didn't fail), but flagged distinctly in the
             // "Link" column so an admin knows it's a weaker check.
-            Xn = on.ok
+            on.ok
               ? on.method === "fallback"
                 ? "ok-limited"
                 : "ok"
@@ -92953,19 +92991,31 @@ function dAe({
               ...Vn,
               [Le.id]: { status: Xn, checkedAt: Date.now() },
             })),
-            setLinkCheckProgress({ done: Je, total: t.length }));
+            setLinkCheckProgress({ done: Je, total }));
         }
       };
       await Promise.all(
-        Array.from({ length: Math.min(5, t.length) }, () => Ke()),
+        Array.from({ length: Math.min(5, total) }, () => Ke()),
       );
+      const wasStopped = linkCheckStopRef.current;
       (setLinkCheckRunning(!1),
         Ie(
-          We === 0
-            ? `Link check complete — all ${t.length} channels are reachable!`
-            : `Link check complete — ${We} of ${t.length} channel(s) look broken. Check the "Link" column below.`,
+          wasStopped
+            ? `Link check stopped — ${Je} of ${total} channels checked, ${We} looked broken.`
+            : We === 0
+              ? `Link check complete — all ${total} channels are reachable!`
+              : `Link check complete — ${We} of ${total} channels look broken. Check the "Link" column below.`,
         ),
         setTimeout(() => Ie(""), 6e3));
+    },
+    // 🟢 APP CODE — lets the admin cancel an in-progress dead-link check.
+    // Setting the flag stops workers from picking up new channels, and
+    // immediately resolving every in-flight check (instead of waiting
+    // for each one's own up-to-9s timeout) makes Stop feel instant.
+    stopDeadLinkCheck = () => {
+      (linkCheckStopRef.current = !0),
+        activeLinkChecksRef.current.forEach((cancelFn) => cancelFn()),
+        activeLinkChecksRef.current.clear();
     },
     cr = _.useMemo(() => {
       const de = t.length,
@@ -94008,11 +94058,9 @@ th{background:#f4f4f4}
                         }),
                       ],
                     }),
-                    // 🟢 APP CODE — Dead-Link Checker: tests every channel's
-                    // stream URL (via hls.js, the same engine used for real
-                    // playback) and flags broken ones in the "Link" column
-                    // of the table below, so an admin doesn't have to click
-                    // through every channel manually to find dead links.
+                    // 🟢 APP CODE — Dead-Link Checker panel (see
+                    // linkCheckResults above); results show in the "Link"
+                    // column of the table below.
                     canManageChannels &&
                       x.jsxs("div", {
                         className:
@@ -94032,23 +94080,85 @@ th{background:#f4f4f4}
                                 className: "text-[11px] text-zinc-400 mt-1",
                                 children: linkCheckRunning
                                   ? `Checking channel ${linkCheckProgress.done} of ${linkCheckProgress.total}...`
-                                  : `Tests all ${t.length} channel stream links and flags broken ones in the "Link" column below.`,
+                                  : d || p !== "All"
+                                    ? `Tests the ${Or.length} channel(s) currently shown below (matching your search/filter) and flags broken ones in the "Link" column.`
+                                    : `Tests all ${Or.length} channel stream links and flags broken ones in the "Link" column below.`,
                               }),
+                              // 🟢 APP CODE — visual progress bar for the
+                              // dead-link check, filling left-to-right as
+                              // channels get checked (done / total), with
+                              // a rounded percentage label alongside it.
+                              linkCheckRunning &&
+                                x.jsxs("div", {
+                                  className:
+                                    "flex items-center gap-2 mt-2",
+                                  children: [
+                                    x.jsx("div", {
+                                      className:
+                                        "flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden",
+                                      children: x.jsx("div", {
+                                        className:
+                                          "h-full bg-sky-500 rounded-full transition-all duration-200",
+                                        style: {
+                                          width: `${
+                                            linkCheckProgress.total > 0
+                                              ? (linkCheckProgress.done /
+                                                  linkCheckProgress.total) *
+                                                100
+                                              : 0
+                                          }%`,
+                                        },
+                                      }),
+                                    }),
+                                    x.jsxs("span", {
+                                      className:
+                                        "text-[11px] font-bold text-sky-400 shrink-0 w-9 text-right",
+                                      children: [
+                                        linkCheckProgress.total > 0
+                                          ? Math.round(
+                                              (linkCheckProgress.done /
+                                                linkCheckProgress.total) *
+                                                100,
+                                            )
+                                          : 0,
+                                        "%",
+                                      ],
+                                    }),
+                                  ],
+                                }),
                             ],
                           }),
-                          x.jsxs("button", {
-                            type: "button",
-                            onClick: runDeadLinkCheck,
-                            disabled: linkCheckRunning || t.length === 0,
-                            className:
-                              "px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-sky-500/50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition duration-150 active:scale-[0.98] shadow-lg shadow-sky-500/10 cursor-pointer shrink-0",
+                          x.jsxs("div", {
+                            className: "flex items-center gap-2 shrink-0",
                             children: [
-                              x.jsx(gO, {
-                                className: `w-3.5 h-3.5 ${linkCheckRunning ? "animate-spin" : ""}`,
+                              x.jsxs("button", {
+                                type: "button",
+                                onClick: runDeadLinkCheck,
+                                disabled: linkCheckRunning || Or.length === 0,
+                                className:
+                                  "px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-sky-500/50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition duration-150 active:scale-[0.98] shadow-lg shadow-sky-500/10 cursor-pointer shrink-0",
+                                children: [
+                                  x.jsx(gO, {
+                                    className: `w-3.5 h-3.5 ${linkCheckRunning ? "animate-spin" : ""}`,
+                                  }),
+                                  linkCheckRunning
+                                    ? "Checking..."
+                                    : d || p !== "All"
+                                      ? "Check Visible Links"
+                                      : "Check All Links",
+                                ],
                               }),
-                              linkCheckRunning
-                                ? "Checking..."
-                                : "Check All Links",
+                              // 🟢 APP CODE — Stop button: only shown while a
+                              // check is running, lets the admin cancel it
+                              // mid-way instead of waiting for every channel.
+                              linkCheckRunning &&
+                                x.jsx("button", {
+                                  type: "button",
+                                  onClick: stopDeadLinkCheck,
+                                  className:
+                                    "btn-stop-linkcheck px-4 py-2 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition duration-150 active:scale-[0.98] cursor-pointer shrink-0",
+                                  children: "Stop",
+                                }),
                             ],
                           }),
                         ],
