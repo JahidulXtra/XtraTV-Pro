@@ -4847,3 +4847,16 @@ select option {
     font-size: 16px !important;
   }
 }
+
+/* 🟢 APP CODE — Dead-Link Checker "Stop" button. Hand-written instead of
+   Tailwind utility classes since this project ships a pre-built, purged
+   app.css that only includes classes already used elsewhere in source. */
+.btn-stop-linkcheck {
+  background-color: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+.btn-stop-linkcheck:hover {
+  background-color: rgba(239, 68, 68, 0.25);
+}
+
