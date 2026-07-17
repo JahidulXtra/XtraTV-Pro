@@ -93983,9 +93983,9 @@ th{background:#f4f4f4}
                 x.jsxs("div", {
                   className: "space-y-4",
                   children: [
-                    // 🟢 APP CODE — Bulk export/backup panel: download the
-                    // full channel list as JSON, or restore from a previous
-                    // backup file (separate from the M3U-only bulk import).
+                    // 🟢 APP CODE — Bulk export/backup panel (see
+                    // exportChannelsBackup below); also restores from a
+                    // previous backup file (separate from M3U-only import).
                     x.jsxs("div", {
                       className:
                         "p-4 bg-indigo-500/5 border border-indigo-500/15 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4",
@@ -94513,10 +94513,9 @@ th{background:#f4f4f4}
                           }),
                         }),
                     }),
-                    // 🟢 APP CODE — Bulk category reassign: appears once at
-                    // least one channel is checked in the table below, lets
-                    // an admin move every selected channel to one category
-                    // in a single action instead of editing them one by one.
+                    // 🟢 APP CODE — Bulk category reassign panel (see
+                    // selectedIds above); shown once at least one channel
+                    // is checked in the table below.
                     canManageChannels &&
                       selectedIds.length > 0 &&
                       x.jsxs("div", {
@@ -95805,10 +95804,8 @@ th{background:#f4f4f4}
                             }),
                           ],
                         }),
-                    // 🟢 APP CODE — Most-Watched Channels report: ranks
-                    // channels by view count (from Firestore "channel_hits",
-                    // logged every time any visitor selects a channel),
-                    // respecting the same date-range filter as the chart above.
+                    // 🟢 APP CODE — Most-Watched Channels report (see
+                    // topChannelsData above).
                     x.jsxs("div", {
                       className:
                         "bg-[#0a0a0a]/90 border border-white/5 p-5 rounded-2xl space-y-4",
@@ -96194,11 +96191,9 @@ th{background:#f4f4f4}
                     }),
                   ],
                 }),
-              // 🟢 APP CODE — Audit Log tab (Owner-only): "who changed what,
-              // when" trail of admin dashboard actions (Firestore
-              // "admin_audit_log", see js/audit-log.js). Read-only — there's
-              // no delete/clear action here on purpose, so the trail stays
-              // trustworthy even for an Owner.
+              // 🟢 APP CODE — Audit Log tab (see auditLog above). Read-only
+              // — no delete/clear action here on purpose, so the trail
+              // stays trustworthy even for an Owner.
               u === "audit" &&
                 isOwner &&
                 (() => {
