@@ -94100,10 +94100,10 @@ th{background:#f4f4f4}
                       }),
                     x.jsxs("div", {
                       className:
-                        "flex flex-col md:flex-row gap-3 justify-between items-center bg-white/[0.01] border border-white/5 p-3 rounded-2xl",
+                        "flex flex-col gap-3 bg-white/[0.01] border border-white/5 p-3 rounded-2xl",
                       children: [
                         x.jsxs("div", {
-                          className: "relative w-full md:max-w-xs",
+                          className: "relative w-full",
                           children: [
                             x.jsx(Zc, {
                               className:
@@ -94122,7 +94122,7 @@ th{background:#f4f4f4}
                         }),
                         x.jsxs("div", {
                           className:
-                            "flex items-center gap-2 overflow-x-auto flex-nowrap w-full md:w-auto min-w-0 scrollbar-none py-1 justify-start",
+                            "flex items-center gap-2 overflow-x-auto flex-nowrap md:flex-wrap md:overflow-visible w-full min-w-0 scrollbar-none py-1 justify-start",
                           children: [
                             x.jsx("span", {
                               className:
