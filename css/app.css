@@ -1290,7 +1290,7 @@
     overflow: hidden;
   }
   .overflow-hidden {
-    overflow: hidden;
+    overflow: clip;
   }
   .overflow-x-auto {
     overflow-x: auto;
@@ -4835,4 +4835,15 @@ select {
 select option {
   background-color: #18181b; /* zinc-900 */
   color: #f4f4f5; /* zinc-100 */
+}
+
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="url"],
+  input[type="search"],
+  input[type="email"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }

@@ -94122,7 +94122,7 @@ th{background:#f4f4f4}
                         }),
                         x.jsxs("div", {
                           className:
-                            "flex items-center gap-2 overflow-x-auto w-full md:w-auto scrollbar-none py-1 justify-end",
+                            "flex items-center gap-2 overflow-x-auto flex-nowrap w-full md:w-auto min-w-0 scrollbar-none py-1 justify-start",
                           children: [
                             x.jsx("span", {
                               className:
@@ -94144,7 +94144,7 @@ th{background:#f4f4f4}
                                 {
                                   type: "button",
                                   onClick: () => y(de),
-                                  className: `px-3 py-1 text-[10px] font-bold rounded-lg border transition ${p === de ? "bg-indigo-500/10 border-indigo-500/30 border-indigo-400/30 text-indigo-405 text-indigo-400" : "bg-white/5 border-transparent text-zinc-400 hover:text-white"}`,
+                                  className: `px-3 py-1 text-[10px] font-bold rounded-lg border transition shrink-0 whitespace-nowrap ${p === de ? "bg-indigo-500/10 border-indigo-500/30 border-indigo-400/30 text-indigo-405 text-indigo-400" : "bg-white/5 border-transparent text-zinc-400 hover:text-white"}`,
                                   children: de,
                                 },
                                 de,
@@ -94606,7 +94606,7 @@ th{background:#f4f4f4}
                                               className: "p-3",
                                               children: x.jsx("span", {
                                                 className:
-                                                  "text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-zinc-300",
+                                                  "text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-zinc-300 whitespace-nowrap inline-block",
                                                 children: de.category,
                                               }),
                                             }),
